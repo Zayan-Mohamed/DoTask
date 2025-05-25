@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tasks, TASK_STATUS, PRIORITY, categories, type Task } from '$lib/stores/tasks.js';
 
-	let newTask: Task = {
+	let newTask = $state<Task>({
 		id: '',
 		title: '',
 		description: '',
@@ -12,12 +12,12 @@
 		category: $categories[0],
 		tags: [],
 		updatedAt: ''
-	};
+	});
 
-	let tagInput = '';
-	let submitting = false;
-	let success = false;
-	let errorMessage = '';
+	let tagInput = $state('');
+	let submitting = $state(false);
+	let success = $state(false);
+	let errorMessage = $state('');
 
 	function addTag() {
 		if (tagInput.trim() !== '' && !newTask.tags.includes(tagInput.trim())) {
@@ -30,7 +30,8 @@
 		newTask.tags = newTask.tags.filter((t) => t !== tag);
 	}
 
-	function handleSubmit() {
+	function handleSubmit(event: Event) {
+		event.preventDefault();
 		submitting = true;
 		errorMessage = '';
 
@@ -81,7 +82,7 @@
 	}
 
 	// For adding custom categories
-	let newCategory = '';
+	let newCategory = $state('');
 
 	function addCategory() {
 		if (newCategory.trim() !== '' && !$categories.includes(newCategory.trim())) {
@@ -114,7 +115,7 @@
 			</div>
 		{/if}
 
-		<form on:submit|preventDefault={handleSubmit} class="space-y-6">
+		<form onsubmit={handleSubmit} class="space-y-6">
 			<!-- Title -->
 			<div>
 				<label for="title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
@@ -216,7 +217,7 @@
                             aria-label="Add Category"
 							type="button"
 							class="px-3 py-2 bg-accent text-white rounded-md hover:bg-accent/80"
-							on:click={() => {
+							onclick={() => {
 								document.getElementById('categoryModal')?.classList.remove('hidden');
 							}}
 						>
@@ -250,7 +251,7 @@
 					<button
 						type="button"
 						class="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent/80 focus:outline-none focus:ring-2 focus:ring-primary"
-						on:click={addTag}
+						onclick={addTag}
 					>
 						Add
 					</button>
@@ -267,7 +268,7 @@
                                     aria-label="Remove Tag"
 									type="button"
 									class="ml-2 focus:outline-none"
-									on:click={() => removeTag(tag)}
+									onclick={() => removeTag(tag)}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -354,7 +355,7 @@
 				<button
 					type="button"
 					class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
-					on:click={() => {
+					onclick={() => {
 						document.getElementById('categoryModal')?.classList.add('hidden');
 					}}
 				>
@@ -363,7 +364,7 @@
 				<button
 					type="button"
 					class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/80 focus:outline-none focus:ring-2 focus:ring-primary"
-					on:click={() => {
+					onclick={() => {
 						addCategory();
 						document.getElementById('categoryModal')?.classList.add('hidden');
 					}}
