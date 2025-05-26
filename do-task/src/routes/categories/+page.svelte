@@ -1,18 +1,18 @@
 <script lang="ts">
-	import { categories } from '$lib/stores/tasks.js';
-	import { tasks } from '$lib/stores/tasks.js';
+	import { categories, tasks, unifiedStore } from '$lib/stores/unified-store';
+	import type { Category } from '$lib/types';
 
-	let newCategory = '';
-	let editMode: string | null = null;
-	let editValue = '';
-	let errorMessage = '';
-	let successMessage = '';
+	let newCategory = $state('');
+	let editMode: string | null = $state(null);
+	let editValue = $state('');
+	let errorMessage = $state('');
+	let successMessage = $state('');
 
 	// Calculate tasks per category
-	$: categoryStats = $categories.map((category) => {
-		const count = $tasks.filter((task) => task.category === category).length;
-		return { name: category, count };
-	});
+	const categoryStats = $derived($categories.map((category) => {
+		const count = $tasks.filter((task) => task.category?.id === category.id).length;
+		return { name: category.name, count, category };
+	}));
 
 	function addCategory() {
 		if (newCategory.trim() === '') {
@@ -23,7 +23,7 @@
 			return;
 		}
 
-		if ($categories.includes(newCategory.trim())) {
+		if ($categories.some(cat => cat.name === newCategory.trim())) {
 			errorMessage = 'Category already exists';
 			setTimeout(() => {
 				errorMessage = '';
@@ -31,7 +31,7 @@
 			return;
 		}
 
-		categories.update((c) => [...c, newCategory.trim()]);
+		unifiedStore.createCategory(newCategory.trim());
 		newCategory = '';
 
 		successMessage = 'Category added successfully';
@@ -40,9 +40,9 @@
 		}, 3000);
 	}
 
-	function deleteCategory(categoryName: string) {
+	function deleteCategory(categoryId: string) {
 		// Check if any tasks use this category
-		const tasksUsingCategory = $tasks.filter((task) => task.category === categoryName).length;
+		const tasksUsingCategory = $tasks.filter((task) => task.category?.id === categoryId).length;
 
 		if (tasksUsingCategory > 0) {
 			if (
@@ -54,21 +54,24 @@
 			}
 		}
 
-		categories.update((c) => c.filter((cat) => cat !== categoryName));
+		unifiedStore.deleteCategory(categoryId);
 
-		// If any tasks use this category, update them to use the first available category or 'Uncategorized'
+		// If any tasks use this category, update them to use the first available category or null
 		if (tasksUsingCategory > 0) {
-			const defaultCategory = $categories.length > 0 ? $categories[0] : 'Uncategorized';
-
-			// Ensure 'Uncategorized' exists if needed
-			if (defaultCategory === 'Uncategorized' && !$categories.includes('Uncategorized')) {
-				categories.update((c) => [...c, 'Uncategorized']);
-			}
+			const defaultCategory = $categories.length > 0 ? $categories[0] : null;
 
 			// Update all tasks with the deleted category
 			$tasks.forEach((task) => {
-				if (task.category === categoryName) {
-					tasks.updateTask(task.id, { category: defaultCategory });
+				if (task.category?.id === categoryId) {
+					unifiedStore.updateTask(task.id, { 
+						title: task.title,
+						description: task.description,
+						status: task.status,
+						priority: task.priority,
+						dueDate: task.dueDate,
+						categoryId: defaultCategory?.id || '',
+						tags: task.tags
+					});
 				}
 			});
 		}
@@ -79,7 +82,7 @@
 		}, 3000);
 	}
 
-	function startEditMode(categoryName: string) {
+	function startEditMode(categoryId: string, categoryName: string) {
         if (editMode) {
             errorMessage = 'Please finish editing the current category first';
             setTimeout(() => {
@@ -87,7 +90,7 @@
             }, 3000);
             return;
         }
-		editMode = categoryName;
+		editMode = categoryId;
 		editValue = categoryName;
 	}
 
@@ -96,7 +99,7 @@
 		editValue = '';
 	}
 
-	function saveEdit(oldCategoryName: string) {
+	function saveEdit(categoryId: string) {
 		if (editValue.trim() === '') {
 			errorMessage = 'Category name cannot be empty';
 			setTimeout(() => {
@@ -105,13 +108,14 @@
 			return;
 		}
 
-		if (oldCategoryName === editValue.trim()) {
+		const currentCategory = $categories.find(cat => cat.id === categoryId);
+		if (currentCategory && currentCategory.name === editValue.trim()) {
 			// No changes
 			cancelEditMode();
 			return;
 		}
 
-		if ($categories.includes(editValue.trim())) {
+		if ($categories.some(cat => cat.name === editValue.trim())) {
 			errorMessage = 'Category already exists';
 			setTimeout(() => {
 				errorMessage = '';
@@ -119,14 +123,7 @@
 			return;
 		}
 
-		categories.update((c) => c.map((cat) => (cat === oldCategoryName ? editValue.trim() : cat)));
-
-		// Update all tasks that used the old category name
-		$tasks.forEach((task) => {
-			if (task.category === oldCategoryName) {
-				tasks.updateTask(task.id, { category: editValue.trim() });
-			}
-		});
+		unifiedStore.updateCategory(categoryId, editValue.trim());
 
 		cancelEditMode();
 
@@ -172,7 +169,7 @@
 				class="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
 			/>
 			<button
-				on:click={addCategory}
+				onclick={addCategory}
 				class="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/80 transition-colors"
 			>
 				Add Category
@@ -227,10 +224,10 @@
 						</tr>
 					</thead>
 					<tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-						{#each categoryStats as { name, count }, i}
+						{#each categoryStats as { name, count, category }, i}
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
 								<td class="px-6 py-4 whitespace-nowrap">
-									{#if editMode === name}
+									{#if editMode === category.id}
 										<div class="flex gap-2 items-center">
 											<input
 												type="text"
@@ -238,7 +235,7 @@
 												class="flex-grow px-3 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 											<button
-												on:click={() => saveEdit(name)}
+												onclick={() => saveEdit(category.id)}
 												class="p-1"
 												aria-label="Save category name"
 											>
@@ -257,7 +254,7 @@
 													/>
 												</svg>
 											</button>
-											<button on:click={cancelEditMode} class="p-1" aria-label="Cancel editing">
+											<button onclick={cancelEditMode} class="p-1" aria-label="Cancel editing">
 												<svg
 													xmlns="http://www.w3.org/2000/svg"
 													class="h-5 w-5 text-gray-500"
@@ -295,10 +292,10 @@
 									</span>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-									{#if editMode !== name}
+									{#if editMode !== category.id}
 										<div class="flex items-center justify-end space-x-2">
 											<button
-												on:click={() => startEditMode(name)}
+												onclick={() => startEditMode(category.id, name)}
 												class="text-primary hover:text-primary/80"
 												aria-label="Edit category"
 											>
@@ -319,7 +316,7 @@
 											</button>
 
 											<button
-												on:click={() => deleteCategory(name)}
+												onclick={() => deleteCategory(category.id)}
 												class="text-red-600 hover:text-red-800"
 												aria-label="Delete category"
 											>

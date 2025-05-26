@@ -7,7 +7,7 @@ package resolvers
 import (
 	"context"
 	"time"
-	
+
 	"github.com/Zayan-Mohamed/do-task-backend/internal/models"
 )
 
@@ -25,6 +25,7 @@ func (r *taskResolver) CreatedAt(ctx context.Context, obj *models.Task) (string,
 func (r *taskResolver) UpdatedAt(ctx context.Context, obj *models.Task) (string, error) {
 	return obj.UpdatedAt.Format(time.RFC3339), nil
 }
+
 
 type categoryResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }

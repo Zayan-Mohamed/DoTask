@@ -1,7 +1,7 @@
 <script>
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { tasks, TASK_STATUS, PRIORITY } from '$lib/stores/tasks.js';
+	import { tasks, TASK_STATUS, PRIORITY } from '$lib/stores/unified-store';
 
 	let { toggleSidebar, sidebarVisible = $bindable(false) } = $props();
 

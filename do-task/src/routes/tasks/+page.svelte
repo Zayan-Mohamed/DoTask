@@ -1,5 +1,7 @@
 <script lang="ts">
-    import { tasks, TASK_STATUS, PRIORITY, type TaskStatus } from '$lib/stores/tasks.js';
+    import { tasks, categories, unifiedStore, TASK_STATUS, PRIORITY } from '$lib/stores/unified-store';
+    import type { TaskStatus } from '$lib/types';
+    import { onMount } from 'svelte';
 
     // Convert these to $state if you want to make them reactive state variables
     let searchQuery = $state('');
@@ -7,6 +9,11 @@
     let priorityFilter = $state('all');
     let sortBy = $state('dueDate');
     let sortDirection = $state('asc');
+    
+    // Load tasks and categories when component mounts
+    onMount(async () => {
+        await unifiedStore.initializeData();
+    });
 
     // Replace the reactive $: with $derived
     let filteredTasks = $derived($tasks
@@ -91,13 +98,13 @@
 
     // Update task status
     function updateTaskStatus(id: string, newStatus: TaskStatus) {
-        tasks.updateStatus(id, newStatus);
+        unifiedStore.updateTaskStatus(id, newStatus);
     }
 
     // Delete task
     function deleteTask(id: string) {
         if (confirm('Are you sure you want to delete this task?')) {
-            tasks.delete(id);
+            unifiedStore.deleteTask(id);
         }
     }
 </script>
@@ -388,7 +395,7 @@
 									<span
 										class="inline-block px-2 py-1 rounded-md text-xs bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
 									>
-										{task.category}
+										{task.category?.name || 'Uncategorized'}
 									</span>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
@@ -423,7 +430,10 @@
 											<select
 												class="py-1 px-2 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md"
 												value={task.status}
-												onchange={(e) => updateTaskStatus(task.id, e.currentTarget.value as TaskStatus)}
+												onchange={(e) => {
+                                                const target = e.target as HTMLSelectElement;
+                                                updateTaskStatus(task.id, target.value as TaskStatus);
+                                            }}
 											>
 												<option value={TASK_STATUS.TODO}>To Do</option>
 												<option value={TASK_STATUS.IN_PROGRESS}>In Progress</option>

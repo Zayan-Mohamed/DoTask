@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { tasks, TASK_STATUS, PRIORITY, categories, type Task } from '$lib/stores/tasks.js';
+	import { tasks, categories, unifiedStore, TASK_STATUS, PRIORITY } from '$lib/stores/unified-store';
+	import type { Task } from '$lib/types';
 
 	let newTask = $state<Task>({
 		id: '',
@@ -9,7 +10,7 @@
 		priority: PRIORITY.MEDIUM,
 		dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
 		createdAt: '',
-		category: $categories[0],
+		category: $categories.length > 0 ? $categories[0] : { id: '', name: '' },
 		tags: [],
 		updatedAt: ''
 	});
@@ -27,10 +28,10 @@
 	}
 
 	function removeTag(tag: string) {
-		newTask.tags = newTask.tags.filter((t) => t !== tag);
+		newTask.tags = newTask.tags.filter((t: string) => t !== tag);
 	}
 
-	function handleSubmit(event: Event) {
+	async function handleSubmit(event: Event) {
 		event.preventDefault();
 		submitting = true;
 		errorMessage = '';
@@ -42,16 +43,15 @@
 		}
 
 		try {
-			// Add the new task to the store
-			tasks.add({
+			// Add the new task to the store using the unifiedStore
+			await unifiedStore.createTask({
 				title: newTask.title,
 				description: newTask.description,
 				status: newTask.status,
 				priority: newTask.priority,
 				dueDate: new Date(`${newTask.dueDate}T00:00:00`).toISOString(),
-				category: newTask.category,
-				tags: newTask.tags,
-				updatedAt: new Date().toISOString()
+				categoryId: newTask.category?.id || '', // Use categoryId instead of category object
+				tags: newTask.tags
 			});
 
 			// Reset form
@@ -63,7 +63,7 @@
 				priority: PRIORITY.MEDIUM,
 				dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
 				createdAt: '',
-				category: $categories[0],
+				category: $categories.length > 0 ? $categories[0] : { id: '', name: '' },
 				tags: [],
 				updatedAt: ''
 			};
@@ -84,11 +84,16 @@
 	// For adding custom categories
 	let newCategory = $state('');
 
-	function addCategory() {
-		if (newCategory.trim() !== '' && !$categories.includes(newCategory.trim())) {
-			categories.update((c) => [...c, newCategory.trim()]);
-			newTask.category = newCategory.trim();
-			newCategory = '';
+	async function addCategory() {
+		if (newCategory.trim() !== '') {
+			try {
+				// Use the createCategory function to add a new category with proper structure
+				const category = await unifiedStore.createCategory(newCategory.trim());
+				newTask.category = category;
+				newCategory = '';
+			} catch (error) {
+				errorMessage = `Error creating category: ${error instanceof Error ? error.message : String(error)}`;
+			}
 		}
 	}
 </script>
@@ -205,11 +210,23 @@
 					<div class="flex space-x-2">
 						<select
 							id="category"
-							bind:value={newTask.category}
 							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"
+							onchange={(e) => {
+								const target = e.target as HTMLSelectElement;
+								const selectedId = target.value;
+								const selectedCategory = $categories.find(cat => cat.id === selectedId);
+								if (selectedCategory) {
+									newTask.category = selectedCategory;
+								}
+							}}
 						>
 							{#each $categories as category}
-								<option value={category}>{category}</option>
+								<option 
+									value={category.id} 
+									selected={newTask.category?.id === category.id}
+								>
+									{category.name}
+								</option>
 							{/each}
 						</select>
 

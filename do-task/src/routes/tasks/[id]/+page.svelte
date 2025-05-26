@@ -1,11 +1,13 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import { tasks, TASK_STATUS, PRIORITY, categories, type Task } from '$lib/stores/tasks.js';
+    import { TASK_STATUS, PRIORITY, type Task } from '$lib/types.js';
     import { goto } from '$app/navigation';
+    import { tasks, categories, unifiedStore } from '$lib/stores/unified-store';
 
     const taskId = page.params.id;
-    let task = $derived($tasks.find((t) => t.id === taskId));
-    let notFound = $derived(!task);
+
+let task = $derived($tasks.find((t) => t.id === taskId));
+let notFound = $derived(!task);
 
     let editedTask : Task = $derived(task
         ? {
@@ -19,7 +21,7 @@
             status: TASK_STATUS.TODO,
             priority: PRIORITY.MEDIUM,
             dueDate: new Date().toISOString().split('T')[0],
-            category: $categories[0] || '',
+            category: $categories.length > 0 ? $categories[0] : { id: '', name: '' },
             tags: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -44,7 +46,7 @@
         }
     }
 
-    function handleSubmit(event: SubmitEvent) {
+    async function handleSubmit(event: SubmitEvent) {
         event.preventDefault();
         submitting = true;
         errorMessage = '';
@@ -63,9 +65,14 @@
 
         try {
             // Update the task in the store
-            tasks.updateTask(taskId, {
-                ...editedTask,
-                dueDate: new Date(`${editedTask.dueDate}T00:00:00`).toISOString()
+            await unifiedStore.updateTask(taskId, {
+                title: editedTask.title,
+                description: editedTask.description,
+                status: editedTask.status,
+                priority: editedTask.priority,
+                dueDate: new Date(`${editedTask.dueDate}T00:00:00`).toISOString(),
+                categoryId: editedTask.category?.id || '',
+                tags: editedTask.tags
             });
 
             success = true;
@@ -83,19 +90,26 @@
         }
     }
 
-    function addCategory() {
-        if (newCategory.trim() !== '' && !$categories.includes(newCategory.trim())) {
-            categories.update((c) => [...c, newCategory.trim()]);
-            if (editedTask) {
-                editedTask.category = newCategory.trim();
+    async function addCategory() {
+            if (newCategory.trim() !== '') {
+                try {
+                    // Use the createCategory function to add a new category with proper structure
+                    const category = await unifiedStore.createCategory(newCategory.trim());
+                    if (editedTask) {
+                        editedTask.category = category;
+                    }
+                    newCategory = '';
+                } catch (error) {
+                    errorMessage = error instanceof Error
+                        ? `Error creating category: ${error.message}`
+                        : 'An unknown error occurred';
+                }
             }
-            newCategory = '';
         }
-    }
 
     function deleteTask() {
         if (confirm('Are you sure you want to delete this task?')) {
-            tasks.delete(taskId);
+            unifiedStore.deleteTask(taskId);
             goto('/tasks');
         }
     }
@@ -273,15 +287,26 @@
                         class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
                     >
                         Category
-                    </label>
-                    <div class="flex gap-2">
+                    </label>                        <div class="flex gap-2">
                         <select
                             id="category"
-                            bind:value={editedTask.category}
                             class="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+                            onchange={(e) => {
+                                const target = e.target as HTMLSelectElement;
+                                const selectedId = target.value;
+                                const selectedCategory = $categories.find(cat => cat.id === selectedId);
+                                if (selectedCategory) {
+                                    editedTask.category = selectedCategory;
+                                }
+                            }}
                         >
                             {#each $categories as category}
-                                <option value={category}>{category}</option>
+                                <option 
+                                    value={category.id} 
+                                    selected={editedTask.category?.id === category.id}
+                                >
+                                    {category.name}
+                                </option>
                             {/each}
                         </select>
                         <div class="flex items-center gap-2">

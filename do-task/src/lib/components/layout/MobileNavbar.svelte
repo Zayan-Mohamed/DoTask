@@ -13,7 +13,7 @@
 		<button
 			aria-label="Open Sidebar"
 			class="p-2 rounded-full hover:bg-primary/20"
-			on:click={openSidebar}
+			onclick={openSidebar}
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"

@@ -6,7 +6,9 @@
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import MobileNavbar from '$lib/components/layout/MobileNavbar.svelte';
 	
-	let sidebarVisible = false;
+	let { children } = $props();
+	
+	let sidebarVisible = $state(true);
 
 	type SidebarToggleEvent = {
 		detail?: {
@@ -42,10 +44,10 @@
 	<Header />
 
 	<div class="flex flex-1 overflow-hidden">
+		<!-- Sidebar that shows on larger screens -->
 		<Sidebar bind:sidebarVisible toggleSidebar={({ visible }: { visible: boolean }) => handleSidebarToggle({detail: {visible}})} />
-
 		<main class="flex-1 overflow-auto p-6 bg-base-100 dark:bg-gray-900">
-			<slot />
+			{@render children()}
 		</main>
 	</div>
 	
