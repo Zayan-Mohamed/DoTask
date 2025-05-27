@@ -267,7 +267,7 @@
                             type="text"
                             id="title"
                             bind:value={quickTask.title}
-                            class="w-full p-2 border rounded focus:ring focus:ring-primary/20 focus:outline-none"
+                            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"
                             placeholder="Task title"
                             required
                         />
@@ -277,7 +277,7 @@
                         <select
                             id="category"
                             bind:value={quickTask.categoryId}
-                            class="w-full p-2 border rounded focus:ring focus:ring-primary/20 focus:outline-none"
+                            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"
                             required
                         >
                             <option value="" disabled>Select a category</option>
