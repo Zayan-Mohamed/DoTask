@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { user } from '$lib/stores/user.js';
+    import { user } from '$lib/stores/user';
     import { 
         tasks, 
         categories, 
@@ -30,23 +30,27 @@
         }
     });
 
-    let totalTasks = $derived($tasks.length);
+    let totalTasks = $derived(($tasks || []).length);
     
-    let completedTasks = $derived($tasks.filter(
+    let completedTasks = $derived(($tasks || []).filter(
         (task: Task) => task.status === TASK_STATUS.COMPLETED
     ).length);
     
-    let pendingTasks = $derived($tasks.filter(
+    let pendingTasks = $derived(($tasks || []).filter(
         (task: Task) => task.status === TASK_STATUS.TODO
     ).length);
     
-    let inProgressTasks = $derived($tasks.filter(
+    let inProgressTasks = $derived(($tasks || []).filter(
         (task: Task) => task.status === TASK_STATUS.IN_PROGRESS
     ).length);
 
-    let urgentTasks = $derived($tasks.filter(
+    let urgentTasks = $derived(($tasks || []).filter(
         (task: Task) => {
+            if (!task.dueDate) return false;
             const dueDate = new Date(task.dueDate);
+            // Check if date is valid
+            if (isNaN(dueDate.getTime())) return false;
+            
             const now = new Date();
             const threeDaysFromNow = new Date();
             threeDaysFromNow.setDate(now.getDate() + 3);
@@ -316,7 +320,14 @@
                                 <div class="flex justify-between">
                                     <h4 class="font-medium">{task.title}</h4>
                                     <span class="text-sm text-muted">
-                                        {new Date(task.dueDate).toLocaleDateString()}
+                                        {(() => {
+                                            try {
+                                                const date = new Date(task.dueDate);
+                                                return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleDateString();
+                                            } catch {
+                                                return 'Invalid Date';
+                                            }
+                                        })()}
                                     </span>
                                 </div>
                                 <p class="text-sm text-muted line-clamp-1">{task.description}</p>
@@ -331,11 +342,11 @@
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
 
-            {#if $tasks.length === 0}
+            {#if ($tasks || []).length === 0}
                 <p class="text-muted text-center py-4">No task activity yet. Start by adding a task!</p>
             {:else}
                 <ul class="space-y-3">
-                    {#each [...$tasks].sort(sortByCreatedAt).slice(0, 5) as task}
+                    {#each [...($tasks || [])].sort(sortByCreatedAt).slice(0, 5) as task}
                         <li class="flex items-center p-2 border-b border-gray-100 dark:border-gray-700">
                             <!-- Status indicator - clickable to toggle task status -->
                             <button 
@@ -364,7 +375,15 @@
                             <div class="flex-1">
                                 <h4 class="font-medium">{task.title}</h4>
                                 <p class="text-xs text-muted">
-                                    {new Date(task.createdAt).toLocaleString()}
+                                    {(() => {
+                                        try {
+                                            if (!task.createdAt) return 'Unknown date';
+                                            const date = new Date(task.createdAt);
+                                            return isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString();
+                                        } catch {
+                                            return 'Unknown date';
+                                        }
+                                    })()}
                                 </p>
                             </div>
 

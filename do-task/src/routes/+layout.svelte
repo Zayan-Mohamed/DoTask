@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { user } from '$lib/stores/user.js';
+	import { user } from '$lib/stores/user';
 	import '../app.css';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -52,5 +52,5 @@
 	</div>
 	
 	<!-- Mobile navigation bar that shows at the bottom of the screen on small devices -->
-	<MobileNavbar on:openSidebar={openSidebar} />
+	<MobileNavbar onOpenSidebar={openSidebar} />
 </div>

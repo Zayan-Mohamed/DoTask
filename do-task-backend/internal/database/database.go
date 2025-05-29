@@ -2,55 +2,90 @@
 package database
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
-	"sync"
+	"os"
 	"time"
 
 	"github.com/Zayan-Mohamed/do-task-backend/internal/models"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/lib/pq"
+	_ "github.com/lib/pq"
 )
 
-// DB is a mock in-memory database
+// DB wraps the database connection
 type DB struct {
-	tasks      map[string]models.Task
-	categories map[string]models.Category
-	mutex      sync.RWMutex
-	nextID     int
+	*sql.DB
 }
 
 // Connect initializes and returns a database connection
 func Connect() (*DB, error) {
-	db := &DB{
-		tasks:      make(map[string]models.Task),
-		categories: make(map[string]models.Category),
-		nextID:     1,
+	// Get database URL from environment or use default
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:password@localhost:5432/dotask?sslmode=disable"
 	}
-	return db, nil
+
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	return &DB{db}, nil
 }
 
-// Close closes the database connection
-func (db *DB) Close() error {
-	// No-op for the mock implementation
+// RunMigrations runs database migrations
+func (db *DB) RunMigrations() error {
+	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create migration driver: %w", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres", driver)
+	if err != nil {
+		return fmt.Errorf("failed to create migration instance: %w", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
 	return nil
 }
 
-// InitSchema initializes the database schema with some sample data
-func InitSchema(db *DB) error {
+// InitSchema initializes the database with sample data
+func (db *DB) InitSchema() error {
 	// Create initial categories
 	development, err := db.CreateCategory("Development")
 	if err != nil {
 		return err
 	}
-	
+
 	design, err := db.CreateCategory("Design")
 	if err != nil {
 		return err
 	}
-		_, err = db.CreateCategory("Marketing")
+
+	_, err = db.CreateCategory("Marketing")
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = db.CreateCategory("Personal")
 	if err != nil {
 		return err
@@ -66,7 +101,7 @@ func InitSchema(db *DB) error {
 		CategoryID:  development.ID,
 		Tags:        []string{"setup", "project"},
 	})
-	
+
 	if err != nil {
 		return err
 	}
@@ -80,7 +115,7 @@ func InitSchema(db *DB) error {
 		CategoryID:  design.ID,
 		Tags:        []string{"ui", "ux"},
 	})
-	
+
 	if err != nil {
 		return err
 	}
@@ -90,244 +125,430 @@ func InitSchema(db *DB) error {
 
 // CreateTask creates a new task
 func (db *DB) CreateTask(input models.CreateTaskInput) (models.Task, error) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
+	query := `
+		INSERT INTO tasks (title, description, status, priority, due_date, category_id, tags)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, title, description, status, priority, due_date, created_at, updated_at, category_id, tags`
 
-	// Validate that the category exists
-	if _, exists := db.categories[input.CategoryID]; !exists {
-		return models.Task{}, errors.New("category not found")
-	}
-
-	now := time.Now()
 	dueDate, err := time.Parse(time.RFC3339, input.DueDate)
 	if err != nil {
 		return models.Task{}, err
 	}
 
-	id := db.generateID()
-	task := models.Task{
-		ID:          id,
-		Title:       input.Title,
-		Description: input.Description,
-		Status:      input.Status,
-		Priority:    input.Priority,
-		DueDate:     dueDate,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		CategoryID:  input.CategoryID,
-		Tags:        input.Tags,
+	var task models.Task
+	err = db.QueryRow(query,
+		input.Title,
+		input.Description,
+		input.Status,
+		input.Priority,
+		dueDate,
+		input.CategoryID,
+		pq.Array(input.Tags),
+	).Scan(
+		&task.ID,
+		&task.Title,
+		&task.Description,
+		&task.Status,
+		&task.Priority,
+		&task.DueDate,
+		&task.CreatedAt,
+		&task.UpdatedAt,
+		&task.CategoryID,
+		pq.Array(&task.Tags),
+	)
+
+	if err != nil {
+		return models.Task{}, fmt.Errorf("failed to create task: %w", err)
 	}
 
-	db.tasks[id] = task
 	return task, nil
 }
 
 // GetTask retrieves a task by ID
 func (db *DB) GetTask(id string) (models.Task, error) {
-	db.mutex.RLock()
-	defer db.mutex.RUnlock()
+	query := `
+		SELECT id, title, description, status, priority, due_date, created_at, updated_at, category_id, tags
+		FROM tasks WHERE id = $1`
 
-	task, exists := db.tasks[id]
-	if !exists {
-		return models.Task{}, errors.New("task not found")
+	var task models.Task
+	err := db.QueryRow(query, id).Scan(
+		&task.ID,
+		&task.Title,
+		&task.Description,
+		&task.Status,
+		&task.Priority,
+		&task.DueDate,
+		&task.CreatedAt,
+		&task.UpdatedAt,
+		&task.CategoryID,
+		pq.Array(&task.Tags),
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.Task{}, errors.New("task not found")
+		}
+		return models.Task{}, fmt.Errorf("failed to get task: %w", err)
 	}
+
 	return task, nil
 }
 
 // GetAllTasks retrieves all tasks
 func (db *DB) GetAllTasks() ([]models.Task, error) {
-	db.mutex.RLock()
-	defer db.mutex.RUnlock()
+	query := `
+		SELECT id, title, description, status, priority, due_date, created_at, updated_at, category_id, tags
+		FROM tasks ORDER BY created_at DESC`
 
-	tasks := make([]models.Task, 0, len(db.tasks))
-	for _, task := range db.tasks {
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var task models.Task
+		err := rows.Scan(
+			&task.ID,
+			&task.Title,
+			&task.Description,
+			&task.Status,
+			&task.Priority,
+			&task.DueDate,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+			&task.CategoryID,
+			pq.Array(&task.Tags),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan task: %w", err)
+		}
 		tasks = append(tasks, task)
 	}
+
 	return tasks, nil
 }
 
 // UpdateTask updates an existing task
 func (db *DB) UpdateTask(id string, input models.UpdateTaskInput) (models.Task, error) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
-	task, exists := db.tasks[id]
-	if !exists {
-		return models.Task{}, errors.New("task not found")
-	}
+	// Build dynamic query based on provided fields
+	setParts := []string{"updated_at = NOW()"}
+	args := []interface{}{}
+	argIndex := 1
 
 	if input.Title != nil {
-		task.Title = *input.Title
+		setParts = append(setParts, fmt.Sprintf("title = $%d", argIndex))
+		args = append(args, *input.Title)
+		argIndex++
 	}
 	if input.Description != nil {
-		task.Description = *input.Description
+		setParts = append(setParts, fmt.Sprintf("description = $%d", argIndex))
+		args = append(args, *input.Description)
+		argIndex++
 	}
 	if input.Status != nil {
-		task.Status = *input.Status
+		setParts = append(setParts, fmt.Sprintf("status = $%d", argIndex))
+		args = append(args, *input.Status)
+		argIndex++
 	}
 	if input.Priority != nil {
-		task.Priority = *input.Priority
+		setParts = append(setParts, fmt.Sprintf("priority = $%d", argIndex))
+		args = append(args, *input.Priority)
+		argIndex++
 	}
 	if input.DueDate != nil {
 		dueDate, err := time.Parse(time.RFC3339, *input.DueDate)
 		if err != nil {
 			return models.Task{}, err
 		}
-		task.DueDate = dueDate
+		setParts = append(setParts, fmt.Sprintf("due_date = $%d", argIndex))
+		args = append(args, dueDate)
+		argIndex++
 	}
 	if input.CategoryID != nil {
-		if _, exists := db.categories[*input.CategoryID]; !exists {
-			return models.Task{}, errors.New("category not found")
-		}
-		task.CategoryID = *input.CategoryID
+		setParts = append(setParts, fmt.Sprintf("category_id = $%d", argIndex))
+		args = append(args, *input.CategoryID)
+		argIndex++
 	}
 	if input.Tags != nil {
-		task.Tags = input.Tags
+		setParts = append(setParts, fmt.Sprintf("tags = $%d", argIndex))
+		args = append(args, pq.Array(input.Tags))
+		argIndex++
 	}
 
-	task.UpdatedAt = time.Now()
-	db.tasks[id] = task
+	// Add ID as the last argument
+	args = append(args, id)
+
+	query := fmt.Sprintf(`
+		UPDATE tasks SET %s
+		WHERE id = $%d
+		RETURNING id, title, description, status, priority, due_date, created_at, updated_at, category_id, tags`,
+		fmt.Sprintf("%s", setParts[0]), // Handle the case where there might be no updates
+		argIndex)
+
+	// Join all setParts
+	setClause := ""
+	for i, part := range setParts {
+		if i > 0 {
+			setClause += ", "
+		}
+		setClause += part
+	}
+
+	query = fmt.Sprintf(`
+		UPDATE tasks SET %s
+		WHERE id = $%d
+		RETURNING id, title, description, status, priority, due_date, created_at, updated_at, category_id, tags`,
+		setClause, argIndex)
+
+	var task models.Task
+	err := db.QueryRow(query, args...).Scan(
+		&task.ID,
+		&task.Title,
+		&task.Description,
+		&task.Status,
+		&task.Priority,
+		&task.DueDate,
+		&task.CreatedAt,
+		&task.UpdatedAt,
+		&task.CategoryID,
+		pq.Array(&task.Tags),
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.Task{}, errors.New("task not found")
+		}
+		return models.Task{}, fmt.Errorf("failed to update task: %w", err)
+	}
+
 	return task, nil
 }
 
 // UpdateTaskStatus updates the status of a task
 func (db *DB) UpdateTaskStatus(id string, status models.TaskStatus) (models.Task, error) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
+	query := `
+		UPDATE tasks SET status = $1, updated_at = NOW()
+		WHERE id = $2
+		RETURNING id, title, description, status, priority, due_date, created_at, updated_at, category_id, tags`
 
-	task, exists := db.tasks[id]
-	if !exists {
-		return models.Task{}, errors.New("task not found")
+	var task models.Task
+	err := db.QueryRow(query, status, id).Scan(
+		&task.ID,
+		&task.Title,
+		&task.Description,
+		&task.Status,
+		&task.Priority,
+		&task.DueDate,
+		&task.CreatedAt,
+		&task.UpdatedAt,
+		&task.CategoryID,
+		pq.Array(&task.Tags),
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.Task{}, errors.New("task not found")
+		}
+		return models.Task{}, fmt.Errorf("failed to update task status: %w", err)
 	}
 
-	task.Status = status
-	task.UpdatedAt = time.Now()
-	db.tasks[id] = task
 	return task, nil
 }
 
 // DeleteTask deletes a task by ID
 func (db *DB) DeleteTask(id string) error {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
+	query := `DELETE FROM tasks WHERE id = $1`
+	result, err := db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete task: %w", err)
+	}
 
-	if _, exists := db.tasks[id]; !exists {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
 		return errors.New("task not found")
 	}
 
-	delete(db.tasks, id)
 	return nil
 }
 
 // CreateCategory creates a new category
 func (db *DB) CreateCategory(name string) (models.Category, error) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
+	query := `
+		INSERT INTO categories (name)
+		VALUES ($1)
+		RETURNING id, name, created_at, updated_at`
 
-	// Check for duplicate name
-	for _, category := range db.categories {
-		if category.Name == name {
+	var category models.Category
+	err := db.QueryRow(query, name).Scan(
+		&category.ID,
+		&category.Name,
+		&category.CreatedAt,
+		&category.UpdatedAt,
+	)
+
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" { // unique violation
 			return models.Category{}, errors.New("category with this name already exists")
 		}
+		return models.Category{}, fmt.Errorf("failed to create category: %w", err)
 	}
 
-	id := db.generateID()
-	category := models.Category{
-		ID:   id,
-		Name: name,
-	}
-
-	db.categories[id] = category
 	return category, nil
 }
 
 // GetCategory retrieves a category by ID
 func (db *DB) GetCategory(id string) (models.Category, error) {
-	db.mutex.RLock()
-	defer db.mutex.RUnlock()
+	query := `SELECT id, name, created_at, updated_at FROM categories WHERE id = $1`
 
-	category, exists := db.categories[id]
-	if !exists {
-		return models.Category{}, errors.New("category not found")
+	var category models.Category
+	err := db.QueryRow(query, id).Scan(
+		&category.ID,
+		&category.Name,
+		&category.CreatedAt,
+		&category.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.Category{}, errors.New("category not found")
+		}
+		return models.Category{}, fmt.Errorf("failed to get category: %w", err)
 	}
+
 	return category, nil
 }
 
 // GetAllCategories retrieves all categories
 func (db *DB) GetAllCategories() ([]models.Category, error) {
-	db.mutex.RLock()
-	defer db.mutex.RUnlock()
+	query := `SELECT id, name, created_at, updated_at FROM categories ORDER BY name`
 
-	categories := make([]models.Category, 0, len(db.categories))
-	for _, category := range db.categories {
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query categories: %w", err)
+	}
+	defer rows.Close()
+
+	var categories []models.Category
+	for rows.Next() {
+		var category models.Category
+		err := rows.Scan(
+			&category.ID,
+			&category.Name,
+			&category.CreatedAt,
+			&category.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan category: %w", err)
+		}
 		categories = append(categories, category)
 	}
+
 	return categories, nil
 }
 
 // UpdateCategory updates an existing category
 func (db *DB) UpdateCategory(id string, name string) (models.Category, error) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
+	query := `
+		UPDATE categories SET name = $1, updated_at = NOW()
+		WHERE id = $2
+		RETURNING id, name, created_at, updated_at`
 
-	category, exists := db.categories[id]
-	if !exists {
-		return models.Category{}, errors.New("category not found")
-	}
+	var category models.Category
+	err := db.QueryRow(query, name, id).Scan(
+		&category.ID,
+		&category.Name,
+		&category.CreatedAt,
+		&category.UpdatedAt,
+	)
 
-	// Check for duplicate name
-	for cid, cat := range db.categories {
-		if cid != id && cat.Name == name {
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.Category{}, errors.New("category not found")
+		}
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
 			return models.Category{}, errors.New("category with this name already exists")
 		}
+		return models.Category{}, fmt.Errorf("failed to update category: %w", err)
 	}
 
-	category.Name = name
-	db.categories[id] = category
 	return category, nil
 }
 
 // DeleteCategory deletes a category by ID
 func (db *DB) DeleteCategory(id string) error {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
+	// Check if any tasks are using this category
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM tasks WHERE category_id = $1", id).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to check category usage: %w", err)
+	}
 
-	if _, exists := db.categories[id]; !exists {
+	if count > 0 {
+		return errors.New("cannot delete category with associated tasks")
+	}
+
+	query := `DELETE FROM categories WHERE id = $1`
+	result, err := db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete category: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
 		return errors.New("category not found")
 	}
 
-	// Check if any tasks are using this category
-	for _, task := range db.tasks {
-		if task.CategoryID == id {
-			return errors.New("cannot delete category with associated tasks")
-		}
-	}
-
-	delete(db.categories, id)
 	return nil
 }
 
 // GetTasksInCategory retrieves all tasks in a category
 func (db *DB) GetTasksInCategory(categoryID string) ([]models.Task, error) {
-	db.mutex.RLock()
-	defer db.mutex.RUnlock()
-
-	if _, exists := db.categories[categoryID]; !exists {
-		return nil, errors.New("category not found")
+	// First check if category exists
+	_, err := db.GetCategory(categoryID)
+	if err != nil {
+		return nil, err
 	}
+
+	query := `
+		SELECT id, title, description, status, priority, due_date, created_at, updated_at, category_id, tags
+		FROM tasks WHERE category_id = $1 ORDER BY created_at DESC`
+
+	rows, err := db.Query(query, categoryID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tasks in category: %w", err)
+	}
+	defer rows.Close()
 
 	var tasks []models.Task
-	for _, task := range db.tasks {
-		if task.CategoryID == categoryID {
-			tasks = append(tasks, task)
+	for rows.Next() {
+		var task models.Task
+		err := rows.Scan(
+			&task.ID,
+			&task.Title,
+			&task.Description,
+			&task.Status,
+			&task.Priority,
+			&task.DueDate,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+			&task.CategoryID,
+			pq.Array(&task.Tags),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan task: %w", err)
 		}
+		tasks = append(tasks, task)
 	}
-	return tasks, nil
-}
 
-// Helper to generate unique IDs
-func (db *DB) generateID() string {
-	id := db.nextID
-	db.nextID++
-	return fmt.Sprintf("%d", id)
+	return tasks, nil
 }

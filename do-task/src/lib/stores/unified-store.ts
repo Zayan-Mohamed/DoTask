@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import { client } from '$lib/graphql/client.js';
+import { client } from '$lib/graphql/client';
 import {
 	GET_TASKS,
 	GET_CATEGORIES,
@@ -10,7 +10,7 @@ import {
 	CREATE_CATEGORY,
 	UPDATE_CATEGORY,
 	DELETE_CATEGORY
-} from '$lib/graphql/queries.js';
+} from '$lib/graphql/queries';
 import {
 	TASK_STATUS,
 	PRIORITY,
@@ -207,8 +207,11 @@ export async function updateTaskStatus(id: string, status: TaskStatus): Promise<
 		});
 
 		const updatedTask = transformTask(result.data.updateTaskStatus);
+
 		tasks.update((currentTasks) =>
-			currentTasks.map((task) => (task.id === id ? updatedTask : task))
+			currentTasks.map((task) =>
+				task.id === id ? { ...task, ...updatedTask, updatedAt: new Date().toISOString() } : task
+			)
 		);
 		return updatedTask;
 	} catch (err) {

@@ -1,6 +1,6 @@
 import type { DocumentNode, WatchQueryOptions, FetchPolicy } from '@apollo/client/core';
 import { readable, derived } from 'svelte/store';
-import { client } from './client.js';
+import { client } from './client';
 
 /**
  * Execute a GraphQL query and return the results as a Svelte readable store.

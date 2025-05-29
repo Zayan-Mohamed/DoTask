@@ -12,11 +12,16 @@ import (
 	"github.com/Zayan-Mohamed/do-task-backend/internal/resolvers"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 const defaultPort = "8080"
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: Failed to load .env file: %v", err)
+	}
+
 	// Set up the database connection
 	db, err := database.Connect()
 	if err != nil {
@@ -24,9 +29,13 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize the database schema
-	if err := database.InitSchema(db); err != nil {
-		log.Fatalf("Failed to initialize database schema: %v", err)
+	// Run migrations
+	if err := db.RunMigrations(); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	if err := db.InitSchema(); err != nil {
+		log.Printf("Warning: Failed to initialize sample data: %v", err)
 	}
 
 	// Create a new Gin router
@@ -34,7 +43,7 @@ func main() {
 
 	// Configure CORS
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:5173"} // SvelteKit development server
+	config.AllowOrigins = []string{"http://localhost:5173"}
 	config.AllowCredentials = true
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}

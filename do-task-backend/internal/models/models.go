@@ -41,11 +41,13 @@ type Task struct {
 
 // Category represents a task category
 type Category struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// CreateTaskInput is the input for creating a new task
+// CreateTaskInput represents the input for creating a task
 type CreateTaskInput struct {
 	Title       string       `json:"title"`
 	Description string       `json:"description"`
@@ -56,7 +58,7 @@ type CreateTaskInput struct {
 	Tags        []string     `json:"tags"`
 }
 
-// UpdateTaskInput is the input for updating an existing task
+// UpdateTaskInput represents the input for updating a task
 type UpdateTaskInput struct {
 	Title       *string       `json:"title"`
 	Description *string       `json:"description"`

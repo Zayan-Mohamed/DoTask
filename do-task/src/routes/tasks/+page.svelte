@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tasks, categories, unifiedStore, TASK_STATUS, PRIORITY } from '$lib/stores/unified-store';
+    import { tasks, categories, unifiedStore, TASK_STATUS, PRIORITY, loadTasks, loadCategories } from '$lib/stores/unified-store';
     import type { TaskStatus } from '$lib/types';
     import { onMount } from 'svelte';
 
@@ -16,14 +16,14 @@
     });
 
     // Replace the reactive $: with $derived
-    let filteredTasks = $derived($tasks
+    let filteredTasks = $derived(($tasks || [])
         .filter((task) => {
             // Text search
             const matchesSearch =
                 searchQuery === '' ||
                 task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                task.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+                (task.tags && task.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase())));
 
             // Status filter
             const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
@@ -36,9 +36,11 @@
         .sort((a, b) => {
             // Sort by selected field
             if (sortBy === 'dueDate') {
-                const dateA = new Date(a.dueDate).getTime();
-                const dateB = new Date(b.dueDate).getTime();
-                return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+                const dateA = new Date(a.dueDate);
+                const dateB = new Date(b.dueDate);
+                const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+                const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+                return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
             } else if (sortBy === 'priority') {
                 const priorityValues = {
                     [PRIORITY.HIGH]: 3,
@@ -58,8 +60,15 @@
 
     // Format date to human-readable string
     function formatDate(dateString: string) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString();
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                return 'Invalid Date';
+            }
+            return date.toLocaleDateString();
+        } catch (error) {
+            return 'Invalid Date';
+        }
     }
 
     // Get the appropriate status badge class
@@ -97,8 +106,9 @@
     }
 
     // Update task status
-    function updateTaskStatus(id: string, newStatus: TaskStatus) {
-        unifiedStore.updateTaskStatus(id, newStatus);
+    async function updateTaskStatus(id: string, newStatus: TaskStatus) {
+        await unifiedStore.updateTaskStatus(id, newStatus);
+		await Promise.all([loadTasks(), loadCategories()]);
     }
 
     // Delete task
@@ -379,7 +389,7 @@
 									<div class="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
 										{task.description}
 									</div>
-									{#if task.tags.length > 0}
+									{#if task.tags && task.tags.length > 0}
 										<div class="mt-1 flex flex-wrap gap-1">
 											{#each task.tags as tag}
 												<span

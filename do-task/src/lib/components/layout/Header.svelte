@@ -1,7 +1,7 @@
-<script>
+<script lang="ts">
 	import { onMount } from 'svelte';
-	import { user } from '$lib/stores/user.js';
-	import { settings } from '$lib/stores/settings.js';
+	import { user } from '$lib/stores/user';
+	import { settings } from '$lib/stores/settings';
 
 	let isDark = $state(false);
 

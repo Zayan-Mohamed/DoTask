@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS categories;
+DROP EXTENSION IF EXISTS "uuid-ossp";

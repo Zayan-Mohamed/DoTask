@@ -12,7 +12,14 @@ let notFound = $derived(!task);
     let editedTask : Task = $derived(task
         ? {
             ...task,
-            dueDate: new Date(task.dueDate).toISOString().split('T')[0]
+            dueDate: (() => {
+                try {
+                    const date = new Date(task.dueDate);
+                    return isNaN(date.getTime()) ? new Date().toISOString().split('T')[0] : date.toISOString().split('T')[0];
+                } catch {
+                    return new Date().toISOString().split('T')[0];
+                }
+            })()
         }
         : {
             id: '',

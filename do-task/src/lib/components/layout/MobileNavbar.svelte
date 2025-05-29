@@ -1,10 +1,9 @@
-<script>
-	import { createEventDispatcher } from 'svelte';
+<script lang="ts">
 
-	const dispatch = createEventDispatcher();
+	let { onOpenSidebar } = $props();
 
-	function openSidebar() {
-		dispatch('openSidebar');
+	function handleOpenSidebar() {
+		onOpenSidebar?.();
 	}
 </script>
 
@@ -13,7 +12,7 @@
 		<button
 			aria-label="Open Sidebar"
 			class="p-2 rounded-full hover:bg-primary/20"
-			onclick={openSidebar}
+			onclick={handleOpenSidebar}
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"

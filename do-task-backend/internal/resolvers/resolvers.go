@@ -3,6 +3,7 @@ package resolvers
 
 import (
 	"context"
+	"time"
 
 	"github.com/Zayan-Mohamed/do-task-backend/internal/database"
 	"github.com/Zayan-Mohamed/do-task-backend/internal/graph/generated"
@@ -169,3 +170,23 @@ func (r *categoryResolver) Tasks(ctx context.Context, obj *models.Category) ([]*
 	}
 	return result, nil
 }
+
+// DueDate returns a string representation of the task's due date
+func (r *taskResolver) DueDate(ctx context.Context, obj *models.Task) (string, error) {
+	return obj.DueDate.Format(time.RFC3339), nil
+}
+
+// CreatedAt returns a string representation of the task's creation time
+func (r *taskResolver) CreatedAt(ctx context.Context, obj *models.Task) (string, error) {
+	return obj.CreatedAt.Format(time.RFC3339), nil
+}
+
+// UpdatedAt returns a string representation of the task's update time
+func (r *taskResolver) UpdatedAt(ctx context.Context, obj *models.Task) (string, error) {
+	return obj.UpdatedAt.Format(time.RFC3339), nil
+}
+
+type categoryResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type taskResolver struct{ *Resolver }
