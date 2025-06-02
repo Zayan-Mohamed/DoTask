@@ -28,7 +28,7 @@ let notFound = $derived(!task);
             status: TASK_STATUS.TODO,
             priority: PRIORITY.MEDIUM,
             dueDate: new Date().toISOString().split('T')[0],
-            category: $categories.length > 0 ? $categories[0] : { id: '', name: '' },
+            category: $categories.length > 0 ? $categories[0] : { id: 'temp-id', name: 'Create a category first' },
             tags: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()

@@ -139,3 +139,47 @@ export const DELETE_CATEGORY = gql`
 		deleteCategory(id: $id)
 	}
 `;
+
+// Authentication queries and mutations
+
+export const ME_QUERY = gql`
+	query Me {
+		me {
+			id
+			name
+			email
+			createdAt
+			updatedAt
+		}
+	}
+`;
+
+export const LOGIN_MUTATION = gql`
+	mutation Login($input: LoginInput!) {
+		login(input: $input) {
+			user {
+				id
+				name
+				email
+				createdAt
+				updatedAt
+			}
+			token
+		}
+	}
+`;
+
+export const REGISTER_MUTATION = gql`
+	mutation Register($input: RegisterInput!) {
+		register(input: $input) {
+			user {
+				id
+				name
+				email
+				createdAt
+				updatedAt
+			}
+			token
+		}
+	}
+`;

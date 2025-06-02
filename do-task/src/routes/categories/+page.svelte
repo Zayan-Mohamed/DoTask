@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { categories, tasks, unifiedStore } from '$lib/stores/unified-store';
-	import type { Category } from '$lib/types';
 
 	let newCategory = $state('');
 	let editMode: string | null = $state(null);

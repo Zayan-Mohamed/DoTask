@@ -2,11 +2,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/Zayan-Mohamed/do-task-backend/internal/auth"
 	"github.com/Zayan-Mohamed/do-task-backend/internal/database"
 	"github.com/Zayan-Mohamed/do-task-backend/internal/graph/generated"
 	"github.com/Zayan-Mohamed/do-task-backend/internal/resolvers"
@@ -21,6 +23,8 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: Failed to load .env file: %v", err)
 	}
+
+	auth.InitJWT()
 
 	// Set up the database connection
 	db, err := database.Connect()
@@ -48,6 +52,10 @@ func main() {
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	r.Use(cors.New(config))
+
+	// Add authentication middleware
+	r.Use(auth.AuthMiddleware())
+
 	// Set up the GraphQL handler
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{
 		Resolvers: &resolvers.Resolver{DB: db},
@@ -55,6 +63,9 @@ func main() {
 
 	// Routes
 	r.POST("/query", func(c *gin.Context) {
+		// Add Gin context to the request context so GraphQL resolvers can access it
+		ctx := context.WithValue(c.Request.Context(), "GinContextKey", c)
+		c.Request = c.Request.WithContext(ctx)
 		srv.ServeHTTP(c.Writer, c.Request)
 	})
 

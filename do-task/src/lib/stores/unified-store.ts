@@ -1,5 +1,7 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { client } from '$lib/graphql/client';
+import type { FetchPolicy } from '@apollo/client/core/watchQueryOptions';
+import type { WatchQueryFetchPolicy } from '@apollo/client/core';
 import {
 	GET_TASKS,
 	GET_CATEGORIES,
@@ -11,6 +13,7 @@ import {
 	UPDATE_CATEGORY,
 	DELETE_CATEGORY
 } from '$lib/graphql/queries';
+import { isAuthenticated, user } from './auth';
 import {
 	TASK_STATUS,
 	PRIORITY,
@@ -32,20 +35,24 @@ export const error = writable<string | null>(null);
 // Re-export constants
 export { TASK_STATUS, PRIORITY };
 
-// Helper function to transform task data from GraphQL to match frontend expectations
 function transformTask(task: any): Task {
+	if (!task) return null as any;
+
 	return {
 		...task,
-		// Ensure dates are ISO strings
-		dueDate: task.dueDate,
-		createdAt: task.createdAt,
-		updatedAt: task.updatedAt,
-		// Transform category from object to keep compatibility, but we'll migrate this
-		category: task.category
+		id: task.id,
+		title: task.title || '',
+		description: task.description || '',
+		status: task.status,
+		priority: task.priority,
+		dueDate: task.dueDate || null,
+		createdAt: task.createdAt || new Date().toISOString(),
+		updatedAt: task.updatedAt || new Date().toISOString(),
+		category: task.category || null,
+		tags: task.tags || []
 	};
 }
 
-// Helper function to transform category data
 function transformCategory(category: any): Category {
 	return {
 		id: category.id,
@@ -59,18 +66,57 @@ export async function loadTasks() {
 	error.set(null);
 
 	try {
+		// Check if user is authenticated before loading tasks
+		if (!get(isAuthenticated) || !get(user)) {
+			error.set('Authentication required. Please log in.');
+			loading.set(false);
+			throw new Error('Authentication required');
+		}
+
 		const result = await client.query({
 			query: GET_TASKS,
-			fetchPolicy: 'network-only' // Always fetch fresh data
+			// Always use network-only to avoid cache recursion issues
+			fetchPolicy: 'network-only' as FetchPolicy,
+			// Don't update cache with partial data if query fails
+			errorPolicy: 'none'
 		});
 
+		// Check for errors or missing data
+		if (result.errors) {
+			const errorMessage = result.errors[0]?.message || 'GraphQL error occurred';
+			if (errorMessage.includes('authentication required')) {
+				error.set('Authentication required. Please log in.');
+			} else {
+				error.set(errorMessage);
+			}
+			// Only clear tasks if it's an authentication error
+			if (errorMessage.includes('authentication')) {
+				tasks.set([]);
+			}
+			return get(tasks);
+		}
+
+		// Check if data and tasks exist before trying to access them
+		if (!result.data || !result.data.tasks) {
+			error.set('No task data returned from server');
+			// Don't clear the store if we have existing data
+			return get(tasks);
+		}
+
+		// Transform tasks before updating the store
 		const transformedTasks = result.data.tasks.map(transformTask);
+
+		// Update store with new tasks
 		tasks.set(transformedTasks);
 		return transformedTasks;
 	} catch (err) {
 		console.error('Error loading tasks:', err);
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
 		error.set(errorMessage);
+		// Don't clear existing tasks on error unless it's auth related
+		if (errorMessage.includes('authentication')) {
+			tasks.set([]);
+		}
 		throw err;
 	} finally {
 		loading.set(false);
@@ -83,18 +129,56 @@ export async function loadCategories() {
 	error.set(null);
 
 	try {
+		// Check if user is authenticated before loading categories
+		if (!get(isAuthenticated) || !get(user)) {
+			error.set('Authentication required. Please log in.');
+			loading.set(false);
+			return [];
+		}
+
 		const result = await client.query({
 			query: GET_CATEGORIES,
-			fetchPolicy: 'network-only'
+			// Always use network-only to avoid cache recursion issues
+			fetchPolicy: 'network-only' as FetchPolicy,
+			// Don't update cache with partial data if query fails
+			errorPolicy: 'none'
 		});
 
+		// Check for errors or missing data
+		if (result.errors) {
+			const errorMessage = result.errors[0]?.message || 'GraphQL error occurred';
+			if (errorMessage.includes('authentication required')) {
+				error.set('Authentication required. Please log in.');
+			} else {
+				error.set(errorMessage);
+			}
+			// Only clear categories if it's an authentication error
+			if (errorMessage.includes('authentication')) {
+				categories.set([]);
+			}
+			return get(categories);
+		}
+
+		// Check if data and categories exist before trying to access them
+		if (!result.data || !result.data.categories) {
+			error.set('No category data returned from server');
+			// Don't clear the store if we have existing data
+			return get(categories);
+		}
+
 		const transformedCategories = result.data.categories.map(transformCategory);
+
+		// Update store with new categories
 		categories.set(transformedCategories);
 		return transformedCategories;
 	} catch (err) {
 		console.error('Error loading categories:', err);
 		const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
 		error.set(errorMessage);
+		// Don't clear existing categories on error unless it's auth related
+		if (errorMessage.includes('authentication')) {
+			categories.set([]);
+		}
 		throw err;
 	} finally {
 		loading.set(false);
@@ -107,6 +191,23 @@ export async function createTask(taskInput: CreateTaskInput): Promise<Task> {
 	error.set(null);
 
 	try {
+		// Check if user is authenticated
+		if (!get(isAuthenticated) || !get(user)) {
+			error.set('Authentication required. Please log in.');
+			loading.set(false);
+			throw new Error('Authentication required');
+		}
+
+		if (!taskInput.categoryId || taskInput.categoryId.trim() === '') {
+			// Try to get the first available category
+			const cats = get(categories);
+			if (cats && cats.length > 0) {
+				taskInput.categoryId = cats[0].id;
+			} else {
+				throw new Error('No categories available. Please create a category first.');
+			}
+		}
+
 		const result = await client.mutate({
 			mutation: CREATE_TASK,
 			variables: {
@@ -141,6 +242,17 @@ export async function updateTask(id: string, updates: UpdateTaskInput): Promise<
 	error.set(null);
 
 	try {
+		// Check if the categoryId is empty and handle it appropriately
+		if (updates.categoryId !== undefined && updates.categoryId.trim() === '') {
+			// Try to get the first available category
+			const cats = get(categories);
+			if (cats && cats.length > 0) {
+				updates.categoryId = cats[0].id;
+			} else {
+				delete updates.categoryId;
+			}
+		}
+
 		const result = await client.mutate({
 			mutation: UPDATE_TASK,
 			variables: {
@@ -151,7 +263,7 @@ export async function updateTask(id: string, updates: UpdateTaskInput): Promise<
 					status: updates.status,
 					priority: updates.priority,
 					dueDate: updates.dueDate,
-					categoryId: updates.categoryId, // Note: backend expects categoryId
+					categoryId: updates.categoryId,
 					tags: updates.tags
 				}
 			}
@@ -367,13 +479,11 @@ export const unifiedStore = {
 	// Utility methods
 	initializeData,
 
-	// Compatibility methods (same as individual functions but organized)
 	add: createTask,
 	updateStatus: updateTaskStatus,
 	delete: deleteTask
 };
 
-// Define the type for the extended task store
 export type TaskStore = Writable<Task[]> & {
 	add: (task: Omit<Task, 'id' | 'createdAt'>) => void;
 	updateTask: (id: string, updatedTask: Partial<Task>) => void;

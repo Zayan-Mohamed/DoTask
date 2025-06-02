@@ -1,4 +1,5 @@
-import type { DocumentNode, WatchQueryOptions, FetchPolicy } from '@apollo/client/core';
+import type { DocumentNode, WatchQueryOptions } from '@apollo/client/core';
+import type { FetchPolicy } from '@apollo/client/core/watchQueryOptions';
 import { readable, derived } from 'svelte/store';
 import { client } from './client';
 
@@ -8,7 +9,11 @@ import { client } from './client';
  * @param variables Query variables
  * @param options Additional options for the query
  */
-export function queryStore(query: DocumentNode, variables = {}, options: Partial<WatchQueryOptions> = {}) {
+export function queryStore(
+	query: DocumentNode,
+	variables = {},
+	options: Partial<WatchQueryOptions> = {}
+) {
 	const baseStore = readable({ data: undefined, loading: true, error: undefined }, (set) => {
 		let active = true;
 
@@ -17,7 +22,7 @@ export function queryStore(query: DocumentNode, variables = {}, options: Partial
 				query,
 				variables,
 				...options,
-				fetchPolicy: (options.fetchPolicy as FetchPolicy) || 'network-only'
+				fetchPolicy: (options.fetchPolicy as FetchPolicy) || ('network-only' as FetchPolicy)
 			})
 			.then((result) => {
 				if (active) {

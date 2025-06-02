@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Auth Test</title>
+	</head>
+	<body>
+		<h1>Authentication Test</h1>
+
+		<div>
+			<h2>Current Authentication State</h2>
+			<button onclick="checkLocalStorage()">Check localStorage</button>
+			<button onclick="checkCookies()">Check cookies</button>
+			<button onclick="testLogout()">Test logout API</button>
+			<pre id="output"></pre>
+		</div>
+
+		<script>
+			function log(message) {
+				const output = document.getElementById('output');
+				output.textContent += new Date().toISOString() + ': ' + message + '\n';
+			}
+
+			function checkLocalStorage() {
+				log('=== localStorage Check ===');
+				log('accessToken: ' + (localStorage.getItem('accessToken') || 'null'));
+				log('refreshToken: ' + (localStorage.getItem('refreshToken') || 'null'));
+				log('username: ' + (localStorage.getItem('username') || 'null'));
+			}
+
+			function checkCookies() {
+				log('=== Cookies Check ===');
+				log('All cookies: ' + document.cookie);
+			}
+
+			async function testLogout() {
+				log('=== Testing logout API ===');
+				try {
+					const response = await fetch('http://localhost:5173/api/logout', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json'
+						}
+					});
+					const result = await response.json();
+					log('Logout API response: ' + JSON.stringify(result));
+
+					// Check localStorage and cookies after logout
+					setTimeout(() => {
+						checkLocalStorage();
+						checkCookies();
+					}, 100);
+				} catch (error) {
+					log('Logout API error: ' + error.message);
+				}
+			}
+
+			// Initial check
+			checkLocalStorage();
+			checkCookies();
+		</script>
+	</body>
+</html>

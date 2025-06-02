@@ -10,7 +10,7 @@
 		priority: PRIORITY.MEDIUM,
 		dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
 		createdAt: '',
-		category: $categories.length > 0 ? $categories[0] : { id: '', name: '' },
+		category: $categories.length > 0 ? $categories[0] : { id: '', name: 'No Category' }, 
 		tags: [],
 		updatedAt: ''
 	});
@@ -42,7 +42,26 @@
 			return;
 		}
 
+		// Validate category ID - must be a non-empty string
+		if (!newTask.category?.id || newTask.category.id.trim() === '') {
+			errorMessage = 'Please select or create a category';
+			submitting = false;
+			return;
+		}
+
 		try {
+			// Make sure we have a valid category ID
+			if (!newTask.category?.id || newTask.category.id.trim() === '') {
+				// If no categories exist, create a default one
+				if ($categories.length === 0) {
+					const defaultCategory = await unifiedStore.createCategory('General');
+					newTask.category = defaultCategory;
+				} else {
+					// Use the first available category
+					newTask.category = $categories[0];
+				}
+			}
+			
 			// Add the new task to the store using the unifiedStore
 			await unifiedStore.createTask({
 				title: newTask.title,
@@ -50,7 +69,7 @@
 				status: newTask.status,
 				priority: newTask.priority,
 				dueDate: new Date(`${newTask.dueDate}T00:00:00`).toISOString(),
-				categoryId: newTask.category?.id || '', // Use categoryId instead of category object
+				categoryId: newTask.category.id, // Use categoryId from selected category
 				tags: newTask.tags
 			});
 
@@ -63,7 +82,8 @@
 				priority: PRIORITY.MEDIUM,
 				dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
 				createdAt: '',
-				category: $categories.length > 0 ? $categories[0] : { id: '', name: '' },
+				// Always use a valid category for the form
+				category: $categories.length > 0 ? $categories[0] : { id: 'temp-id', name: 'Create a category first' },
 				tags: [],
 				updatedAt: ''
 			};

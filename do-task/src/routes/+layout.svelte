@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { user } from '$lib/stores/user';
+	import { page } from '$app/state';
+	import { authService, isAuthenticated, isLoading } from '$lib/stores/auth';
+	import { goto } from '$app/navigation';
 	import '../app.css';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -25,32 +27,57 @@
 	}
 
 	onMount(() => {
-		let username = localStorage.getItem('username');
-		if (!username) {
-			username = prompt('Please enter your name:');
-			if (username) {
-				localStorage.setItem('username', username);
-			}
-		}
-		user.set(username || 'Guest');
+		// Check authentication status
+		authService.checkAuth();
 		
 		// Check screen width and set sidebar visibility accordingly
-		const isDesktop = window.innerWidth >= 640; // sm breakpoint is 640px in Tailwind
-		sidebarVisible = isDesktop;
+		const handleResize = () => {
+			if (window.innerWidth >= 640) {
+				sidebarVisible = true;
+			}
+		};
+		handleResize();
+		window.addEventListener('resize', handleResize);
+		
+		return () => {
+			window.removeEventListener('resize', handleResize);
+		};
+	});
+
+	// Redirect logic based on authentication
+	$effect(() => {
+		if (!$isLoading) {
+			const isAuthPage = page.url.pathname.startsWith('/auth');
+			
+			if (!$isAuthenticated && !isAuthPage) {
+				goto('/auth/login');
+			} else if ($isAuthenticated && isAuthPage) {
+				goto('/');
+			}
+		}
 	});
 </script>
 
-<div class="flex flex-col h-screen">
-	<Header />
-
-	<div class="flex flex-1 overflow-hidden">
-		<!-- Sidebar that shows on larger screens -->
-		<Sidebar bind:sidebarVisible toggleSidebar={({ visible }: { visible: boolean }) => handleSidebarToggle({detail: {visible}})} />
-		<main class="flex-1 overflow-auto p-6 bg-base-100 dark:bg-gray-900">
-			{@render children()}
-		</main>
+{#if $isLoading}
+	<div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+		<div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
 	</div>
-	
-	<!-- Mobile navigation bar that shows at the bottom of the screen on small devices -->
-	<MobileNavbar onOpenSidebar={openSidebar} />
-</div>
+{:else if $isAuthenticated}
+	<div class="flex h-screen bg-gray-100 dark:bg-gray-900">
+		<Sidebar bind:sidebarVisible toggleSidebar={handleSidebarToggle} />
+		
+		<div class="flex-1 flex flex-col overflow-hidden">
+			<Header />
+			
+			<main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-4">
+				{@render children()}
+			</main>
+		</div>
+		
+		<MobileNavbar onOpenSidebar={openSidebar} />
+	</div>
+{:else}
+	<main class="min-h-screen">
+		{@render children()}
+	</main>
+{/if}

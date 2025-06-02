@@ -5,6 +5,42 @@ import (
 	"time"
 )
 
+// User represents a user in the system
+type User struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Password  string    `json:"password"` // This will be hashed
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// LoginInput represents the input for user login
+type LoginInput struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// RegisterInput represents the input for user registration
+type RegisterInput struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// AuthResponse represents the response after successful authentication
+type AuthResponse struct {
+	User  *User  `json:"user"`
+	Token string `json:"token"`
+}
+
+// JWTClaims represents the JWT token claims
+type JWTClaims struct {
+	UserID string `json:"userId"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+}
+
 // TaskStatus represents the status of a task
 type TaskStatus string
 
@@ -36,6 +72,7 @@ type Task struct {
 	CreatedAt   time.Time    `json:"createdAt"`
 	UpdatedAt   time.Time    `json:"updatedAt"`
 	CategoryID  string       `json:"categoryId"`
+	UserID      string       `json:"userId"` // Associate task with user
 	Tags        []string     `json:"tags"`
 }
 
@@ -55,6 +92,7 @@ type CreateTaskInput struct {
 	Priority    TaskPriority `json:"priority"`
 	DueDate     string       `json:"dueDate"`
 	CategoryID  string       `json:"categoryId"`
+	UserID      string       `json:"userId"` // Add UserID for authentication
 	Tags        []string     `json:"tags"`
 }
 

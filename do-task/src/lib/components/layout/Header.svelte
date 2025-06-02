@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { user } from '$lib/stores/user';
+	import { user } from '$lib/stores/auth';
+	import { authService } from '$lib/stores/auth';
 	import { settings } from '$lib/stores/settings';
 
 	let isDark = $state(false);
@@ -25,9 +26,8 @@
 		localStorage.setItem('theme', $settings.theme);
 	}
 
-	function deleteUsername() {
-		localStorage.removeItem('username');
-		location.reload();
+	async function handleLogout() {
+		await authService.logout();
 	}
 
 	onMount(() => {
@@ -45,7 +45,7 @@
 		}
 	});
 
-	let avatarUrl = $derived(`https://ui-avatars.com/api/?name=${encodeURIComponent($user)}&background=6366F1&color=fff&rounded=true&size=64`);
+	let avatarUrl = $derived(`https://ui-avatars.com/api/?name=${encodeURIComponent($user?.name || 'User')}&background=6366F1&color=fff&rounded=true&size=64`);
 	let formattedDate = $derived(getDate());
 </script>
 
@@ -127,7 +127,7 @@
 					class="flex items-center space-x-2 focus:outline-none"
 					aria-label="User menu"
 				>
-					<span class="hidden md:block">{$user}</span>
+					<span class="hidden md:block">{$user?.name || 'User'}</span>
 					<img src={avatarUrl} alt="Profile" class="w-8 h-8 rounded-full" />
 				</button>
 				<div
@@ -144,7 +144,7 @@
 						>Settings</a
 					>
 					<button
-						onclick={deleteUsername}
+						onclick={handleLogout}
 						class="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
 						>Sign out</button
 					>
