@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// UserInfo represents authenticated user information
 type UserInfo struct {
 	ID            string
 	Email         string
@@ -16,13 +15,10 @@ type UserInfo struct {
 	Authenticated bool
 }
 
-// GetUserFromGraphQLContext extracts user information from GraphQL context
-// This works with the Gin context that's passed through to GraphQL resolvers
 func GetUserFromGraphQLContext(ctx context.Context) (*UserInfo, error) {
 	// Get Gin context from GraphQL context
 	ginCtx, exists := ctx.Value("GinContextKey").(*gin.Context)
 	if !exists {
-		// Try to get it directly if it's stored differently
 		if directCtx, ok := ctx.(*gin.Context); ok {
 			ginCtx = directCtx
 		} else {
@@ -40,7 +36,6 @@ func GetUserFromGraphQLContext(ctx context.Context) (*UserInfo, error) {
 	}, nil
 }
 
-// Require Authentication checks if user is authenticated and returns user info
 func RequireAuthentication(ctx context.Context) (*UserInfo, error) {
 	userInfo, err := GetUserFromGraphQLContext(ctx)
 	if err != nil {

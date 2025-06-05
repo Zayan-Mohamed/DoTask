@@ -28,6 +28,18 @@ type RegisterInput struct {
 	Password string `json:"password"`
 }
 
+// UpdateProfileInput represents the input for updating user profile
+type UpdateProfileInput struct {
+	Name  *string `json:"name"`
+	Email *string `json:"email"`
+}
+
+// ChangePasswordInput represents the input for changing user password
+type ChangePasswordInput struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
 // AuthResponse represents the response after successful authentication
 type AuthResponse struct {
 	User  *User  `json:"user"`

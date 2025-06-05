@@ -3,6 +3,7 @@ package resolvers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -374,6 +375,54 @@ func (r *queryResolver) Me(ctx context.Context) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+// UpdateProfile updates the current user's profile
+func (r *mutationResolver) UpdateProfile(ctx context.Context, input models.UpdateProfileInput) (*models.User, error) {
+	userInfo, err := auth.RequireAuthentication(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := r.DB.UpdateUserProfile(userInfo.ID, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// ChangePassword changes the current user's password
+func (r *mutationResolver) ChangePassword(ctx context.Context, input models.ChangePasswordInput) (bool, error) {
+	userInfo, err := auth.RequireAuthentication(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// Get user with password to verify current password
+	user, err := r.DB.GetUserWithPassword(userInfo.ID)
+	if err != nil {
+		return false, err
+	}
+
+	// Verify current password
+	if !auth.CheckPassword(input.CurrentPassword, user.Password) {
+		return false, errors.New("current password is incorrect")
+	}
+
+	// Hash new password
+	hashedPassword, err := auth.HashPassword(input.NewPassword)
+	if err != nil {
+		return false, fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	// Update password in database
+	err = r.DB.ChangeUserPassword(userInfo.ID, hashedPassword)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 type categoryResolver struct{ *Resolver }

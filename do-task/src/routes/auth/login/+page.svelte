@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { authService, authError, isLoading } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
 
 	let email = $state('');
 	let password = $state('');
@@ -33,10 +32,8 @@
 		
 		try {
 			await authService.login(email, password);
-			// Now that we're logged in, redirect to the dashboard
 			goto('/');
 		} catch (error: any) {
-			// Error is handled in the auth store
 			console.error('Login failed:', error);
 		}
 	}
@@ -169,8 +166,8 @@
 
 			<div class="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
 				<p>Demo credentials:</p>
-				<p>Email: john@example.com</p>
-				<p>Password: password123</p>
+				<p>Email: mfm.zayaan13@gmail.com</p>
+				<p>Password: Zayan@#25</p>
 			</div>
 		</form>
 	</div>

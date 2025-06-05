@@ -54,3 +54,22 @@ export const PRIORITY: Record<TaskPriority, TaskPriority> = {
 	MEDIUM: 'MEDIUM',
 	HIGH: 'HIGH'
 } as const;
+
+// User related types
+export interface User {
+	id: string;
+	name: string;
+	email: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface UpdateProfileInput {
+	name?: string;
+	email?: string;
+}
+
+export interface ChangePasswordInput {
+	currentPassword: string;
+	newPassword: string;
+}

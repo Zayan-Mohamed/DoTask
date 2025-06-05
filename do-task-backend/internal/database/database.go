@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Zayan-Mohamed/do-task-backend/internal/models"
@@ -22,7 +23,6 @@ type DB struct {
 
 // Connect initializes and returns a database connection
 func Connect() (*DB, error) {
-	// Get database URL from environment or use default
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		dbURL = "postgres://postgres:password@localhost:5432/dotask?sslmode=disable"
@@ -69,11 +69,6 @@ func (db *DB) RunMigrations() error {
 
 // InitSchema initializes the database with sample data
 func (db *DB) InitSchema() error {
-	// Note: This function is for initial setup and doesn't use user-specific data
-	// In production, categories and tasks should be created through authenticated requests
-
-	// Skip initialization if this is a production environment
-	// Categories and tasks will be created by authenticated users
 	return nil
 }
 
@@ -97,7 +92,7 @@ func (db *DB) CreateTask(input models.CreateTaskInput) (models.Task, error) {
 		input.Priority,
 		dueDate,
 		input.CategoryID,
-		input.UserID, // Add user_id parameter
+		input.UserID,
 		pq.Array(input.Tags),
 	).Scan(
 		&task.ID,
@@ -188,7 +183,6 @@ func (db *DB) GetAllTasks() ([]models.Task, error) {
 	return tasks, nil
 }
 
-// GetAllTasksByUser retrieves all tasks for a specific user
 func (db *DB) GetAllTasksByUser(userID string) ([]models.Task, error) {
 	query := `
 		SELECT id, title, description, status, priority, due_date, created_at, updated_at, category_id, user_id, tags
@@ -225,7 +219,6 @@ func (db *DB) GetAllTasksByUser(userID string) ([]models.Task, error) {
 	return tasks, nil
 }
 
-// UpdateTask updates an existing task for a specific user
 func (db *DB) UpdateTask(id string, input models.UpdateTaskInput, userID string) (models.Task, error) {
 	// Build dynamic query based on provided fields
 	setParts := []string{"updated_at = NOW()"}
@@ -605,6 +598,110 @@ func (db *DB) GetUserByID(id string) (models.User, error) {
 		&user.ID,
 		&user.Name,
 		&user.Email,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.User{}, errors.New("user not found")
+		}
+		return models.User{}, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return user, nil
+}
+
+// UpdateUserProfile updates a user's profile information
+func (db *DB) UpdateUserProfile(id string, input models.UpdateProfileInput) (models.User, error) {
+	// Start building the query dynamically
+	setParts := []string{}
+	args := []interface{}{}
+	argCount := 1
+
+	if input.Name != nil {
+		setParts = append(setParts, fmt.Sprintf("name = $%d", argCount))
+		args = append(args, *input.Name)
+		argCount++
+	}
+
+	if input.Email != nil {
+		setParts = append(setParts, fmt.Sprintf("email = $%d", argCount))
+		args = append(args, *input.Email)
+		argCount++
+	}
+
+	if len(setParts) == 0 {
+		return models.User{}, errors.New("no fields to update")
+	}
+
+	// Add updated_at and user ID
+	setParts = append(setParts, fmt.Sprintf("updated_at = $%d", argCount))
+	args = append(args, time.Now())
+	argCount++
+
+	args = append(args, id)
+
+	query := fmt.Sprintf(`
+		UPDATE users 
+		SET %s 
+		WHERE id = $%d
+		RETURNING id, name, email, created_at, updated_at`,
+		strings.Join(setParts, ", "), argCount)
+
+	var user models.User
+	err := db.QueryRow(query, args...).Scan(
+		&user.ID,
+		&user.Name,
+		&user.Email,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return models.User{}, errors.New("user not found")
+		}
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" { // unique violation
+			return models.User{}, errors.New("email already exists")
+		}
+		return models.User{}, fmt.Errorf("failed to update user profile: %w", err)
+	}
+
+	return user, nil
+}
+
+// ChangeUserPassword changes a user's password
+func (db *DB) ChangeUserPassword(id string, newHashedPassword string) error {
+	query := `UPDATE users SET password = $1, updated_at = $2 WHERE id = $3`
+
+	result, err := db.Exec(query, newHashedPassword, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("failed to change password: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
+}
+
+// GetUserWithPassword retrieves a user with password for authentication
+func (db *DB) GetUserWithPassword(id string) (models.User, error) {
+	query := `SELECT id, name, email, password, created_at, updated_at FROM users WHERE id = $1`
+
+	var user models.User
+	err := db.QueryRow(query, id).Scan(
+		&user.ID,
+		&user.Name,
+		&user.Email,
+		&user.Password,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Test Authentication & Profile Update</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				margin: 20px;
+			}
+			.section {
+				margin: 20px 0;
+				padding: 15px;
+				border: 1px solid #ddd;
+			}
+			.error {
+				color: red;
+			}
+			.success {
+				color: green;
+			}
+			button {
+				margin: 5px;
+				padding: 10px;
+			}
+			input {
+				margin: 5px;
+				padding: 5px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>DoTask Authentication & Profile Test</h1>
+
+		<div class="section">
+			<h3>1. Register Test User</h3>
+			<input type="text" id="regName" placeholder="Name" value="Test User" />
+			<input type="email" id="regEmail" placeholder="Email" value="test@example.com" />
+			<input type="password" id="regPassword" placeholder="Password" value="TestPass123" />
+			<button onclick="register()">Register</button>
+			<div id="registerResult"></div>
+		</div>
+
+		<div class="section">
+			<h3>2. Login</h3>
+			<input type="email" id="loginEmail" placeholder="Email" value="test@example.com" />
+			<input type="password" id="loginPassword" placeholder="Password" value="TestPass123" />
+			<button onclick="login()">Login</button>
+			<div id="loginResult"></div>
+		</div>
+
+		<div class="section">
+			<h3>3. Get Current User</h3>
+			<button onclick="getCurrentUser()">Get Me</button>
+			<div id="meResult"></div>
+		</div>
+
+		<div class="section">
+			<h3>4. Update Profile</h3>
+			<input type="text" id="updateName" placeholder="New Name" value="Updated Test User" />
+			<input type="email" id="updateEmail" placeholder="New Email" value="updated@example.com" />
+			<button onclick="updateProfile()">Update Profile</button>
+			<div id="updateResult"></div>
+		</div>
+
+		<script>
+			let authToken = '';
+
+			async function makeGraphQLRequest(query, variables = {}) {
+				const response = await fetch('http://localhost:8080/query', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						...(authToken && { Authorization: `Bearer ${authToken}` })
+					},
+					body: JSON.stringify({ query, variables })
+				});
+
+				const result = await response.json();
+				console.log('GraphQL Response:', result);
+				return result;
+			}
+
+			async function register() {
+				const name = document.getElementById('regName').value;
+				const email = document.getElementById('regEmail').value;
+				const password = document.getElementById('regPassword').value;
+
+				const query = `
+                mutation Register($input: RegisterInput!) {
+                    register(input: $input) {
+                        user {
+                            id
+                            name
+                            email
+                        }
+                        token
+                    }
+                }
+            `;
+
+				try {
+					const result = await makeGraphQLRequest(query, {
+						input: { name, email, password }
+					});
+
+					if (result.data && result.data.register) {
+						authToken = result.data.register.token;
+						document.getElementById('registerResult').innerHTML =
+							`<div class="success">Registered successfully! User: ${result.data.register.user.name}</div>`;
+					} else {
+						document.getElementById('registerResult').innerHTML =
+							`<div class="error">Registration failed: ${result.errors?.[0]?.message || 'Unknown error'}</div>`;
+					}
+				} catch (error) {
+					document.getElementById('registerResult').innerHTML =
+						`<div class="error">Error: ${error.message}</div>`;
+				}
+			}
+
+			async function login() {
+				const email = document.getElementById('loginEmail').value;
+				const password = document.getElementById('loginPassword').value;
+
+				const query = `
+                mutation Login($input: LoginInput!) {
+                    login(input: $input) {
+                        user {
+                            id
+                            name
+                            email
+                        }
+                        token
+                    }
+                }
+            `;
+
+				try {
+					const result = await makeGraphQLRequest(query, {
+						input: { email, password }
+					});
+
+					if (result.data && result.data.login) {
+						authToken = result.data.login.token;
+						document.getElementById('loginResult').innerHTML =
+							`<div class="success">Logged in successfully! User: ${result.data.login.user.name}</div>`;
+					} else {
+						document.getElementById('loginResult').innerHTML =
+							`<div class="error">Login failed: ${result.errors?.[0]?.message || 'Unknown error'}</div>`;
+					}
+				} catch (error) {
+					document.getElementById('loginResult').innerHTML =
+						`<div class="error">Error: ${error.message}</div>`;
+				}
+			}
+
+			async function getCurrentUser() {
+				const query = `
+                query Me {
+                    me {
+                        id
+                        name
+                        email
+                        createdAt
+                        updatedAt
+                    }
+                }
+            `;
+
+				try {
+					const result = await makeGraphQLRequest(query);
+
+					if (result.data && result.data.me) {
+						document.getElementById('meResult').innerHTML =
+							`<div class="success">Current user: ${JSON.stringify(result.data.me, null, 2)}</div>`;
+					} else {
+						document.getElementById('meResult').innerHTML =
+							`<div class="error">Failed to get user: ${result.errors?.[0]?.message || 'Unknown error'}</div>`;
+					}
+				} catch (error) {
+					document.getElementById('meResult').innerHTML =
+						`<div class="error">Error: ${error.message}</div>`;
+				}
+			}
+
+			async function updateProfile() {
+				const name = document.getElementById('updateName').value;
+				const email = document.getElementById('updateEmail').value;
+
+				const query = `
+                mutation UpdateProfile($input: UpdateProfileInput!) {
+                    updateProfile(input: $input) {
+                        id
+                        name
+                        email
+                        createdAt
+                        updatedAt
+                    }
+                }
+            `;
+
+				try {
+					const result = await makeGraphQLRequest(query, {
+						input: { name, email }
+					});
+
+					if (result.data && result.data.updateProfile) {
+						document.getElementById('updateResult').innerHTML =
+							`<div class="success">Profile updated! ${JSON.stringify(result.data.updateProfile, null, 2)}</div>`;
+					} else {
+						document.getElementById('updateResult').innerHTML =
+							`<div class="error">Update failed: ${result.errors?.[0]?.message || 'Unknown error'}</div>`;
+					}
+				} catch (error) {
+					document.getElementById('updateResult').innerHTML =
+						`<div class="error">Error: ${error.message}</div>`;
+				}
+			}
+		</script>
+	</body>
+</html>

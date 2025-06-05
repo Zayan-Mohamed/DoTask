@@ -138,9 +138,7 @@ export async function loadCategories() {
 
 		const result = await client.query({
 			query: GET_CATEGORIES,
-			// Always use network-only to avoid cache recursion issues
 			fetchPolicy: 'network-only' as FetchPolicy,
-			// Don't update cache with partial data if query fails
 			errorPolicy: 'none'
 		});
 
@@ -162,7 +160,6 @@ export async function loadCategories() {
 		// Check if data and categories exist before trying to access them
 		if (!result.data || !result.data.categories) {
 			error.set('No category data returned from server');
-			// Don't clear the store if we have existing data
 			return get(categories);
 		}
 
@@ -242,9 +239,7 @@ export async function updateTask(id: string, updates: UpdateTaskInput): Promise<
 	error.set(null);
 
 	try {
-		// Check if the categoryId is empty and handle it appropriately
 		if (updates.categoryId !== undefined && updates.categoryId.trim() === '') {
-			// Try to get the first available category
 			const cats = get(categories);
 			if (cats && cats.length > 0) {
 				updates.categoryId = cats[0].id;
@@ -288,6 +283,12 @@ export async function updateTask(id: string, updates: UpdateTaskInput): Promise<
 export async function deleteTask(id: string): Promise<boolean> {
 	loading.set(true);
 	error.set(null);
+
+	if(!get(isAuthenticated)) {
+		error.set('Authentication required. Please log in.');
+		loading.set(false);
+		return false;
+	}
 
 	try {
 		await client.mutate({
@@ -340,6 +341,18 @@ export async function updateTaskStatus(id: string, status: TaskStatus): Promise<
 export async function createCategory(name: string): Promise<Category> {
 	loading.set(true);
 	error.set(null);
+
+	if(!get(isAuthenticated) || !get(user)) {
+		error.set('Authentication required. Please log in.');
+		loading.set(false);
+		throw new Error('Authentication required');
+	}
+	
+	if (!name || name.trim() === '') {
+		error.set('Category name cannot be empty');
+		loading.set(false);
+		throw new Error('Category name cannot be empty');
+	}
 
 	try {
 		const result = await client.mutate({

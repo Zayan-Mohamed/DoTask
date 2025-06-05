@@ -37,7 +37,7 @@ class AuthService {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));
 
 		try {
-			// Use GraphQL client to login instead of REST API
+			// Use GraphQL client to login 
 			const result = await client.mutate({
 				mutation: LOGIN_MUTATION,
 				variables: {
@@ -84,7 +84,7 @@ class AuthService {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));
 
 		try {
-			// Use GraphQL client instead of REST API
+			// Use GraphQL client to Register
 			const result = await client.mutate({
 				mutation: REGISTER_MUTATION,
 				variables: {
@@ -136,22 +136,18 @@ class AuthService {
 			});
 		} catch (error) {
 			console.error('Logout API error:', error);
-			// Continue with client-side cleanup even if server logout fails
 		}
 
-		// Always perform client-side cleanup regardless of server response
 		try {
-			// Clear localStorage tokens
+			
 			if (browser) {
 				localStorage.removeItem('accessToken');
 				localStorage.removeItem('refreshToken');
 				localStorage.removeItem('username');
 			}
 
-			// Clear Apollo cache to remove any cached user data
 			await client.clearStore();
 
-			// Reset cache entirely to ensure clean state
 			await client.resetStore();
 		} catch (error) {
 			console.error('Error during client cleanup:', error);

@@ -183,3 +183,22 @@ export const REGISTER_MUTATION = gql`
 		}
 	}
 `;
+
+// Profile management mutations
+export const UPDATE_PROFILE_MUTATION = gql`
+	mutation UpdateProfile($input: UpdateProfileInput!) {
+		updateProfile(input: $input) {
+			id
+			name
+			email
+			createdAt
+			updatedAt
+		}
+	}
+`;
+
+export const CHANGE_PASSWORD_MUTATION = gql`
+	mutation ChangePassword($input: ChangePasswordInput!) {
+		changePassword(input: $input)
+	}
+`;

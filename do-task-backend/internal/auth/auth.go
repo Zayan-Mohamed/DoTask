@@ -100,7 +100,6 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		if tokenString == "" {
-			// No token found, but continue - let GraphQL resolvers handle auth requirements
 			c.Next()
 			return
 		}
@@ -108,12 +107,11 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Validate token
 		claims, err := ValidateToken(tokenString)
 		if err != nil {
-			// Invalid token, but continue - let GraphQL resolvers handle auth requirements
 			c.Next()
 			return
 		}
 
-		// Add user info to context
+		// Add user info to Gin - context
 		c.Set("userID", claims.UserID)
 		c.Set("userEmail", claims.Email)
 		c.Set("userName", claims.Name)

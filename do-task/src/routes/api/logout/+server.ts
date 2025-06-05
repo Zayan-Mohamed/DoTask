@@ -7,19 +7,10 @@ export const POST: RequestHandler = async ({ cookies }) => {
 		cookies.delete('accessToken', {
 			path: '/',
 			httpOnly: true,
-			secure: false, // Set to true in production with HTTPS
+			secure: false, 
 			sameSite: 'lax'
 		});
 
-		// Also try to clear with different path configurations
-		cookies.delete('accessToken', {
-			path: '/',
-			httpOnly: true,
-			secure: false,
-			sameSite: 'lax'
-		});
-
-		// Also try to clear any other potential auth cookies
 		cookies.delete('refreshToken', {
 			path: '/',
 			httpOnly: true,
@@ -36,7 +27,15 @@ export const POST: RequestHandler = async ({ cookies }) => {
 			maxAge: 0
 		});
 
-		return json({ success: true, message: 'Logged out successfully' });
+		cookies.set('refreshToken', '', {
+			path: '/',
+			httpOnly: true,
+			secure: false,
+			sameSite: 'lax',
+			maxAge: 0
+		});
+
+		return json({ success: true, message: 'Logged out successfully' }, { status: 200 });
 	} catch (error) {
 		console.error('Logout error:', error);
 		return json({ success: false, message: 'Logout failed' }, { status: 500 });

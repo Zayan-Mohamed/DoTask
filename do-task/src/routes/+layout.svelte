@@ -44,7 +44,6 @@
 		};
 	});
 
-	// Redirect logic based on authentication
 	$effect(() => {
 		if (!$isLoading) {
 			const isAuthPage = page.url.pathname.startsWith('/auth');
