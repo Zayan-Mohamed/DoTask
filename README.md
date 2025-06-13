@@ -637,3 +637,187 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 **If you found this project helpful, please give it a ⭐**
 
 </div>
+
+---
+
+## 🐳 Docker Setup (Context 7)
+
+DoTask includes a complete Docker setup with **Context 7** architecture - an intelligent, production-ready containerization system.
+
+### 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/Zayan-Mohamed/DoTask.git
+cd DoTask
+
+# Test complete setup
+./scripts/setup-docker.sh
+
+# Start development environment
+./scripts/dotask.sh dev
+
+# Start production environment
+./scripts/dotask.sh prod
+```
+
+### 📋 System Requirements
+
+- **Docker** 20.10+ with Docker Compose
+- **4GB RAM** minimum (8GB recommended)
+- **10GB** free disk space
+- **Linux/macOS/Windows** with WSL2
+
+### 🎯 Available Environments
+
+#### Development Environment
+
+```bash
+./scripts/dotask.sh dev
+# Frontend: http://localhost:5173 (Hot reload)
+# Backend: http://localhost:8080 (GraphQL Playground)
+# Database: localhost:5432
+```
+
+#### Production Environment
+
+```bash
+./scripts/dotask.sh prod
+# Application: http://localhost (NGINX + optimized builds)
+# API: http://localhost/api
+# Health Check: http://localhost/health
+```
+
+### 🛠️ Management Commands
+
+```bash
+# System Status
+./scripts/dotask.sh status              # Check all services
+./scripts/docker-monitor.sh             # Health monitoring
+./scripts/docker-monitor.sh watch       # Continuous monitoring
+
+# Logs & Debugging
+./scripts/dotask.sh logs                # View recent logs
+./scripts/dotask.sh follow              # Follow logs in real-time
+
+# Database Operations
+./scripts/dotask.sh db status           # Database info
+./scripts/dotask.sh db backup           # Create backup
+./scripts/dotask.sh db restore <file>   # Restore backup
+./scripts/dotask.sh db shell            # Open database shell
+
+# Cleanup
+./scripts/dotask.sh clean               # Stop containers (keep data)
+./scripts/dotask.sh clean-all           # Full cleanup (remove data)
+```
+
+### 🏛️ Context 7 Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   NGINX Proxy   │    │   SvelteKit     │    │   Go Backend    │
+│   (Port 80)     │◄──►│   Frontend      │◄──►│   (GraphQL)     │
+│   • Rate Limit  │    │   • SSR/SPA     │    │   • JWT Auth    │
+│   • Security    │    │   • Hot Reload  │    │   • Migrations  │
+│   • Caching     │    │   • PWA Ready   │    │   • Health      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                        │
+                                               ┌─────────────────┐
+                                               │   PostgreSQL    │
+                                               │   Database      │
+                                               │   • Persistence │
+                                               │   • Health Chk  │
+                                               │   • Backups     │
+                                               └─────────────────┘
+```
+
+### 🔧 Advanced Configuration
+
+#### Environment Variables (.env.docker)
+
+```env
+# Database
+POSTGRES_DB=dotask
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=admin
+
+# Backend
+JWT_SECRET=your-secret-key
+CORS_ORIGINS=http://localhost
+GIN_MODE=release
+
+# Frontend
+VITE_GRAPHQL_ENDPOINT=http://localhost/api/query
+VITE_APP_TITLE=DoTask
+```
+
+#### Custom NGINX Configuration
+
+Production setup includes optimized NGINX with:
+
+- **Rate limiting** (10 req/s API, 5 req/min login)
+- **Security headers** (XSS, CSRF, Content Security Policy)
+- **Compression** (GZIP, Brotli ready)
+- **Caching** (Static assets, API responses)
+- **Health checks** and monitoring
+
+### 📊 Monitoring & Health Checks
+
+```bash
+# Complete health check
+./scripts/docker-monitor.sh
+
+# Generate health report
+./scripts/docker-monitor.sh report
+
+# Test specific components
+./scripts/docker-monitor.sh api
+./scripts/docker-monitor.sh resources
+```
+
+### 🔍 Troubleshooting
+
+**Common Issues:**
+
+```bash
+# Port conflicts
+./scripts/dotask.sh clean && ./scripts/dotask.sh dev
+
+# Database connection issues
+./scripts/dotask.sh db status
+docker logs dotask-postgres
+
+# Frontend build issues
+docker logs dotask-frontend-dev
+docker exec -it dotask-frontend-dev npm run build
+
+# Backend compilation issues
+docker logs dotask-backend-dev
+docker exec -it dotask-backend-dev go mod tidy
+```
+
+**Debug Mode:**
+
+```bash
+# View detailed logs
+./scripts/dotask.sh logs
+./scripts/docker-monitor.sh logs
+
+# Access container shells
+docker exec -it dotask-backend sh
+docker exec -it dotask-frontend sh
+docker exec -it dotask-postgres psql -U postgres dotask
+```
+
+### 🚀 Performance Optimizations
+
+- **Multi-stage builds** for minimal image sizes
+- **Alpine Linux** base images (< 100MB total)
+- **Build caching** with .dockerignore optimization
+- **Asset compression** and long-term caching
+- **Connection pooling** and keep-alive
+- **Health checks** with automatic recovery
+
+For complete Docker documentation, see [DOCKER.md](DOCKER.md).
+
+---

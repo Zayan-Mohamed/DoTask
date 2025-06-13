@@ -3,10 +3,11 @@ import { InMemoryCache } from '@apollo/client/cache';
 import { createHttpLink } from '@apollo/client/link/http';
 import { setContext } from '@apollo/client/link/context';
 import { browser } from '$app/environment';
+import { env } from '$env/dynamic/public';
 
 // Create HTTP link to GraphQL server
 const httpLink = createHttpLink({
-	uri: 'http://localhost:8080/query',
+	uri: env.PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:8080/query',
 	credentials: 'include'
 });
 

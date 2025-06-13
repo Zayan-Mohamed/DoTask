@@ -1,0 +1,103 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database for Development
+  postgres:
+    image: postgres:15-alpine
+    container_name: dotask-postgres-dev
+    environment:
+      POSTGRES_DB: dotask
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - dotask-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dotask"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Go Backend API with Hot Reload
+  backend:
+    build:
+      context: ./do-task-backend
+      dockerfile: Dockerfile.dev
+    container_name: dotask-backend-dev
+    environment:
+      - DATABASE_URL=postgres://postgres:admin@postgres:5432/dotask?sslmode=disable
+      - PORT=8080
+      - JWT_SECRET=81b705c0597375a27d6d08b8b09b9dd073acf15218128970973477e429c4870b
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - GIN_MODE=debug
+    volumes:
+      - ./do-task-backend:/app
+      - /app/tmp # Exclude tmp directory used by air
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dotask-dev-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # SvelteKit Frontend with Hot Reload
+  frontend:
+    build:
+      context: ./do-task
+      dockerfile: Dockerfile.dev
+    container_name: dotask-frontend-dev
+    environment:
+      - VITE_GRAPHQL_ENDPOINT=http://localhost:8080/query
+      - VITE_WS_ENDPOINT=ws://localhost:8080/query
+      - VITE_APP_TITLE=DoTask (Development)
+      - VITE_APP_VERSION=1.0.0-dev
+    volumes:
+      - ./do-task:/app
+      - /app/node_modules # Exclude node_modules
+      - /app/.svelte-kit # Exclude .svelte-kit
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - dotask-dev-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:5173/",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  dotask-dev-network:
+    driver: bridge

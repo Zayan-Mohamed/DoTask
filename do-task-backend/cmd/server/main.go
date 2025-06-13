@@ -69,9 +69,21 @@ func main() {
 		srv.ServeHTTP(c.Writer, c.Request)
 	})
 
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "healthy", "service": "dotask-backend"})
+	})
+	r.HEAD("/health", func(c *gin.Context) {
+		c.Status(200)
+	})
+
+	// Root endpoint - GraphQL playground (also handle HEAD for health checks)
 	r.GET("/", func(c *gin.Context) {
 		playground := playground.Handler("GraphQL playground", "/query")
 		playground.ServeHTTP(c.Writer, c.Request)
+	})
+	r.HEAD("/", func(c *gin.Context) {
+		c.Status(200)
 	})
 
 	// Determine port to run the server on
