@@ -37,7 +37,7 @@ class AuthService {
 		authStore.update((state) => ({ ...state, isLoading: true, error: null }));
 
 		try {
-			// Use GraphQL client to login 
+			// Use GraphQL client to login
 			const result = await client.mutate({
 				mutation: LOGIN_MUTATION,
 				variables: {
@@ -129,25 +129,15 @@ class AuthService {
 
 	async logout(): Promise<void> {
 		try {
-			// Clear HTTP-only cookies on server
-			await fetch('/api/logout', {
-				method: 'POST',
-				credentials: 'include'
-			});
-		} catch (error) {
-			console.error('Logout API error:', error);
-		}
-
-		try {
-			
+			// Clear client-side storage
 			if (browser) {
 				localStorage.removeItem('accessToken');
 				localStorage.removeItem('refreshToken');
 				localStorage.removeItem('username');
 			}
 
+			// Clear Apollo Client cache
 			await client.clearStore();
-
 			await client.resetStore();
 		} catch (error) {
 			console.error('Error during client cleanup:', error);
