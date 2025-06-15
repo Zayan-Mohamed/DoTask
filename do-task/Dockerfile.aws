@@ -6,15 +6,15 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including devDependencies for build)
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build arguments for environment variables
 ARG PUBLIC_GRAPHQL_ENDPOINT
-ARG PUBLIC_WS_ENDPOINT
+ARG PUBLIC_WS_ENDPOINT  
 ARG PUBLIC_APP_TITLE
 ARG PUBLIC_APP_VERSION
 
@@ -23,6 +23,14 @@ ENV PUBLIC_GRAPHQL_ENDPOINT=${PUBLIC_GRAPHQL_ENDPOINT}
 ENV PUBLIC_WS_ENDPOINT=${PUBLIC_WS_ENDPOINT}
 ENV PUBLIC_APP_TITLE=${PUBLIC_APP_TITLE}
 ENV PUBLIC_APP_VERSION=${PUBLIC_APP_VERSION}
+
+# Debug: Show environment variables
+RUN echo "Build args:" && \
+    echo "PUBLIC_GRAPHQL_ENDPOINT: $PUBLIC_GRAPHQL_ENDPOINT" && \
+    echo "PUBLIC_WS_ENDPOINT: $PUBLIC_WS_ENDPOINT"
+
+# Debug: Check if build script exists
+RUN cat package.json | grep -A 5 '"scripts"'
 
 # Build the app
 RUN npm run build
@@ -36,21 +44,19 @@ RUN rm -rf /usr/share/nginx/html/*
 # Copy built app from builder stage
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Copy custom nginx configuration (use AWS optimized version)
+# Copy custom nginx configuration
 COPY nginx.aws.conf /etc/nginx/nginx.conf
 
-# Create cache directory
-RUN mkdir -p /var/cache/nginx
-
-# Create log directory
-RUN mkdir -p /var/log/nginx
+# Create cache and log directories
+RUN mkdir -p /var/cache/nginx && \
+    mkdir -p /var/log/nginx
 
 # Set proper permissions
-RUN chown -R nginx:nginx /var/cache/nginx
-RUN chown -R nginx:nginx /var/log/nginx
-RUN chown -R nginx:nginx /usr/share/nginx/html
+RUN chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    chown -R nginx:nginx /usr/share/nginx/html
 
-# Add health check
+# Add health check tool
 RUN apk add --no-cache wget
 
 # Expose port
