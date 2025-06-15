@@ -1,45 +1,60 @@
-# Multi-stage build for SvelteKit frontend (AWS Production)
+# Multi-stage build for SvelteKit app
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci
+
+# Install dependencies
+RUN npm ci --only=production
 
 # Copy source code
 COPY . .
 
-# Create production environment file with build args
-ARG PUBLIC_GRAPHQL_ENDPOINT=http://localhost/api/query
-ARG PUBLIC_WS_ENDPOINT=ws://localhost/api/query
-ARG PUBLIC_APP_TITLE=DoTask
-ARG PUBLIC_APP_VERSION=1.0.0
+# Build arguments for environment variables
+ARG PUBLIC_GRAPHQL_ENDPOINT
+ARG PUBLIC_WS_ENDPOINT
+ARG PUBLIC_APP_TITLE
+ARG PUBLIC_APP_VERSION
 
-RUN echo "PUBLIC_GRAPHQL_ENDPOINT=${PUBLIC_GRAPHQL_ENDPOINT}" > .env && \
-    echo "PUBLIC_WS_ENDPOINT=${PUBLIC_WS_ENDPOINT}" >> .env && \
-    echo "PUBLIC_APP_TITLE=${PUBLIC_APP_TITLE}" >> .env && \
-    echo "PUBLIC_APP_VERSION=${PUBLIC_APP_VERSION}" >> .env
+# Set environment variables for build
+ENV PUBLIC_GRAPHQL_ENDPOINT=${PUBLIC_GRAPHQL_ENDPOINT}
+ENV PUBLIC_WS_ENDPOINT=${PUBLIC_WS_ENDPOINT}
+ENV PUBLIC_APP_TITLE=${PUBLIC_APP_TITLE}
+ENV PUBLIC_APP_VERSION=${PUBLIC_APP_VERSION}
 
-# Build the application
+# Build the app
 RUN npm run build
 
 # Production stage with NGINX
 FROM nginx:alpine
 
+# Remove default nginx website
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy built app from builder stage
+COPY --from=builder /app/build /usr/share/nginx/html
+
 # Copy custom nginx configuration (use AWS optimized version)
 COPY nginx.aws.conf /etc/nginx/nginx.conf
 
 # Create cache directory
-RUN mkdir -p /var/cache/nginx/api && \
-    chown -R nginx:nginx /var/cache/nginx
+RUN mkdir -p /var/cache/nginx
 
-# Copy built application
-COPY --from=builder /app/build /usr/share/nginx/html
+# Create log directory
+RUN mkdir -p /var/log/nginx
 
-# Create static directory and copy if exists
-RUN mkdir -p /usr/share/nginx/html/static
+# Set proper permissions
+RUN chown -R nginx:nginx /var/cache/nginx
+RUN chown -R nginx:nginx /var/log/nginx
+RUN chown -R nginx:nginx /usr/share/nginx/html
 
+# Add health check
+RUN apk add --no-cache wget
+
+# Expose port
 EXPOSE 80
 
+# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
